@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AR Gallery</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#000; }
+    #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.150.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.150.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    // Load and initialize the app
+    try {
+      console.log('Loading MindAR and THREE...');
+      
+      // Import THREE 
+      const THREE = await import('three');
+      window.THREE = THREE;
+      console.log('THREE loaded:', !!window.THREE);
+      
+      // Try to load MindAR from CDN directly
+      const mindARModule = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js');
+      window.MindARThree = mindARModule.MindARThree || mindARModule.default;
+      console.log('MindARThree loaded:', !!window.MindARThree);
+      console.log('MindAR module keys:', Object.keys(mindARModule));
+      
+      if (!window.MindARThree) {
+        throw new Error('MindARThree constructor not found');
+      }
+      
+      // Load our app
+      await import('/src/main.js');
+    } catch (error) {
+      console.error('Failed to load:', error);
+      document.getElementById('loading').textContent = 'Failed to load AR app. Please refresh.';
+    }
+  </script>
+</head>
+<body>
+  <div id="loading">Loading…</div>
+</body>
+</html>

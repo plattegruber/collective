@@ -1,0 +1,7 @@
+[build]
+include = [
+  "dist/**/*"
+]
+
+[[build.buildpacks]]
+uri = "paketo-buildpacks/static-web-server"
