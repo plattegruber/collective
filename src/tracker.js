@@ -17,7 +17,7 @@ export async function initTracker({ map, content, versions }) {
   
   // Configure renderer for video background
   renderer.setClearColor(0x000000, 0); // Transparent background
-  renderer.autoClear = false;
+  renderer.autoClear = true; // Allow proper clearing for overlay visibility
 
   // Add lighting
   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
@@ -31,13 +31,17 @@ export async function initTracker({ map, content, versions }) {
     anchor.group.add(group);
 
     anchor.onTargetFound = () => {
-      console.log(`Target found: ${artId}`);
-      fade(group, true);
+      group.visible = true;
+      group.traverse((child) => {
+        child.visible = true;
+      });
     };
     
     anchor.onTargetLost = () => {
-      console.log(`Target lost: ${artId}`);
-      fade(group, false);
+      group.visible = false;
+      group.traverse((child) => {
+        child.visible = false;
+      });
     };
   }
 
@@ -69,6 +73,7 @@ export async function initTracker({ map, content, versions }) {
     canvas.style.setProperty('background', 'transparent', 'important');
   }
   
+  // Start render loop after MindAR is initialized
   const animate = () => {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
@@ -77,15 +82,22 @@ export async function initTracker({ map, content, versions }) {
 }
 
 function fade(group, show) {
-  // Simple visibility toggle - could be enhanced with smooth fade animation
   group.visible = show;
   
-  // Optional: Add fade animation
-  if (show) {
-    group.traverse(child => {
-      if (child.material && child.material.opacity !== undefined) {
-        child.material.opacity = 1;
+  // Ensure materials are properly hidden/shown
+  group.traverse(child => {
+    if (child.material) {
+      if (show) {
+        child.material.opacity = child.material.userData?.originalOpacity || 0.8;
+        child.material.transparent = true;
+        child.visible = true;
+      } else {
+        // Store original opacity and hide completely
+        if (!child.material.userData) child.material.userData = {};
+        child.material.userData.originalOpacity = child.material.opacity;
+        child.material.opacity = 0;
+        child.visible = false;
       }
-    });
-  }
+    }
+  });
 }
