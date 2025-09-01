@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "targets": [
+    { "index": 0, "artId": "EDW-2022-BlueBoat" },
+    { "index": 1, "artId": "HOK-2019-Sunset" },
+    { "index": 2, "artId": "ART-2023-Abstract" }
+  ]
+}
