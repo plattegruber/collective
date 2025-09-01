@@ -7,6 +7,25 @@
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; }
     #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; }
+    
+    /* Ensure MindAR video element is visible */
+    video { 
+      position: absolute !important; 
+      top: 0 !important; 
+      left: 0 !important; 
+      width: 100% !important; 
+      height: 100% !important; 
+      object-fit: cover !important;
+      z-index: -1 !important;
+    }
+    
+    /* Ensure canvas is on top of video */
+    canvas {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      z-index: 1 !important;
+    }
   </style>
   <script type="importmap">
   {

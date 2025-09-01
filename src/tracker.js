@@ -10,6 +10,10 @@ export async function initTracker({ map, content, versions }) {
   });
 
   const { renderer, scene, camera } = mindarThree;
+  
+  // Configure renderer for video background
+  renderer.setClearColor(0x000000, 0); // Transparent background
+  renderer.autoClear = false;
 
   // Add lighting
   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
@@ -40,13 +44,32 @@ export async function initTracker({ map, content, versions }) {
     camera.updateProjectionMatrix();
   });
 
-  await mindarThree.start();
-  console.log('MindAR started successfully');
-
-  // Use the official MindAR render loop - this handles video background automatically!
-  renderer.setAnimationLoop(() => {
+  // Ensure video background is visible
+  const videos = document.querySelectorAll('video');
+  const canvases = document.querySelectorAll('canvas');
+  
+  if (videos.length > 0) {
+    const video = videos[0];
+    setTimeout(() => {
+      video.style.setProperty('z-index', '0', 'important');
+      video.style.setProperty('visibility', 'visible', 'important');
+      video.style.setProperty('display', 'block', 'important');
+    }, 100);
+  }
+  
+  if (canvases.length > 0) {
+    const canvas = canvases[0];
+    canvas.style.setProperty('z-index', '1', 'important');
+    canvas.style.setProperty('background', 'transparent', 'important');
+  }
+  
+  const animate = () => {
+    requestAnimationFrame(animate);
     renderer.render(scene, camera);
-  });
+  };
+  animate();
+
+  await mindarThree.start();
 }
 
 function fade(group, show) {
