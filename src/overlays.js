@@ -13,7 +13,7 @@ export async function buildOverlay(art) {
     transparent: true 
   });
   const panel = new THREE.Mesh(panelGeo, panelMat);
-  panel.position.set(0, -h * 0.65, z); // Position below artwork center
+  panel.position.set(0, 0, z); // Center on artwork
   group.add(panel);
 
   // Text content
