@@ -44,6 +44,8 @@ export async function initTracker({ map, content, versions }) {
     camera.updateProjectionMatrix();
   });
 
+  await mindarThree.start();
+  
   // Ensure video background is visible
   const videos = document.querySelectorAll('video');
   const canvases = document.querySelectorAll('canvas');
@@ -68,8 +70,6 @@ export async function initTracker({ map, content, versions }) {
     renderer.render(scene, camera);
   };
   animate();
-
-  await mindarThree.start();
 }
 
 function fade(group, show) {
