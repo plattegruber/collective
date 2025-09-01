@@ -5,7 +5,7 @@ import { buildOverlay } from './overlays.js';
 export async function initTracker({ map, content, versions }) {
   const mindarThree = new MindARThree({
     container: document.body,
-    imageTargetSrc: `/targets/${versions.mindFile}`,
+    imageTargetSrc: `${import.meta.env.BASE_URL}targets/${versions.mindFile}`,
     maxTrack: versions.maxTrack
   });
 

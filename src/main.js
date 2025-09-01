@@ -10,8 +10,8 @@ export const VERSIONS = {
 (async () => {
   try {
     const [map, content] = await Promise.all([
-      fetch(`/targets/targets-map.${VERSIONS.targetsMap}.json`).then(r => r.json()),
-      fetch(`/data/art-content.${VERSIONS.artContent}.json`).then(r => r.json())
+      fetch(`${import.meta.env.BASE_URL}targets/targets-map.${VERSIONS.targetsMap}.json`).then(r => r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/art-content.${VERSIONS.artContent}.json`).then(r => r.json())
     ]);
 
     await initTracker({ map, content, versions: VERSIONS });
