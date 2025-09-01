@@ -6,7 +6,11 @@ export async function initTracker({ map, content, versions }) {
   const mindarThree = new MindARThree({
     container: document.body,
     imageTargetSrc: `${import.meta.env.BASE_URL}targets/${versions.mindFile}`,
-    maxTrack: versions.maxTrack
+    maxTrack: versions.maxTrack,
+    filterMinCF: 0.01,     // Even more jitter reduction (default: 0.001)
+    filterBeta: 5,         // More smoothing (default: 1000)
+    warmupTolerance: 3,    // Frames to confirm detection (default: 5)
+    missTolerance: 3       // Frames to confirm loss (default: 5)
   });
 
   const { renderer, scene, camera } = mindarThree;
