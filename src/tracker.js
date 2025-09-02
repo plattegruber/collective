@@ -23,6 +23,13 @@ export async function initTracker({ map, content, versions }) {
   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
   scene.add(light);
 
+  // Get HTML overlay element
+  const artworkInfo = document.getElementById('artwork-info');
+  const titleEl = document.getElementById('artwork-title');
+  const artistEl = document.getElementById('artwork-artist');
+  const materialsEl = document.getElementById('artwork-materials');
+  const descriptionEl = document.getElementById('artwork-description');
+
   // Create anchors for each target
   for (const { index, artId } of map.targets) {
     const anchor = mindarThree.addAnchor(index);
@@ -30,18 +37,32 @@ export async function initTracker({ map, content, versions }) {
     group.visible = false;
     anchor.group.add(group);
 
+    const artData = content[artId];
+
     anchor.onTargetFound = () => {
+      // Show AR animation
       group.visible = true;
       group.traverse((child) => {
         child.visible = true;
       });
+      
+      // Populate and show HTML overlay
+      titleEl.textContent = artData.title || '';
+      artistEl.textContent = `${artData.artist || ''}${artData.year ? ', ' + artData.year : ''}`;
+      materialsEl.textContent = artData.materials || '';
+      descriptionEl.textContent = artData.description || '';
+      artworkInfo.classList.add('visible');
     };
     
     anchor.onTargetLost = () => {
+      // Hide AR animation
       group.visible = false;
       group.traverse((child) => {
         child.visible = false;
       });
+      
+      // Hide HTML overlay
+      artworkInfo.classList.remove('visible');
     };
   }
 
@@ -74,8 +95,23 @@ export async function initTracker({ map, content, versions }) {
   }
   
   // Start render loop after MindAR is initialized
+  const clock = new THREE.Clock();
+  
   const animate = () => {
     requestAnimationFrame(animate);
+    
+    const time = clock.getElapsedTime();
+    
+    // Animate all visible overlay circles
+    scene.traverse((object) => {
+      if (object.userData?.circle && object.visible) {
+        const { circle, radius } = object.userData;
+        const angle = time * 2; // Rotation speed
+        circle.position.x = Math.cos(angle) * radius;
+        circle.position.y = Math.sin(angle) * radius;
+      }
+    });
+    
     renderer.render(scene, camera);
   };
   animate();

@@ -26,6 +26,46 @@
       left: 0 !important;
       z-index: 1 !important;
     }
+    
+    /* Static artwork information overlay */
+    .artwork-overlay {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      font-family: system-ui, sans-serif;
+      z-index: 10;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    
+    .artwork-overlay.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .artwork-overlay h2 {
+      margin: 0 0 8px 0;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    
+    .artwork-overlay p {
+      margin: 4px 0;
+      line-height: 1.4;
+    }
+    
+    .artwork-overlay p:last-child {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
   </style>
   <script type="importmap">
   {
@@ -65,5 +105,13 @@
 </head>
 <body>
   <div id="loading">Loading…</div>
+  
+  <!-- Static artwork information overlay -->
+  <div id="artwork-info" class="artwork-overlay">
+    <h2 id="artwork-title"></h2>
+    <p id="artwork-artist"></p>
+    <p id="artwork-materials"></p>
+    <p id="artwork-description"></p>
+  </div>
 </body>
 </html>
