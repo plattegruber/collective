@@ -6,7 +6,7 @@
     "materials": "Oil on canvas",
     "description": "A serene maritime scene painted in deep blues and whites.",
     "overlay": {
-      "panel": { "w": 0.8, "h": 1.1, "z": 0.01 },
+      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
       "components": [
         {"kind": "title",  "text": "Blue Boat"},
         {"kind": "byline", "text": "Erik Daniel White, 2022"},

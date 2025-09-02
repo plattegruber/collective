@@ -102,13 +102,10 @@ export async function initTracker({ map, content, versions }) {
     
     const time = clock.getElapsedTime();
     
-    // Animate all visible overlay circles
+    // Update shader uniforms for all visible glow effects
     scene.traverse((object) => {
-      if (object.userData?.circle && object.visible) {
-        const { circle, radius } = object.userData;
-        const angle = time * 2; // Rotation speed
-        circle.position.x = Math.cos(angle) * radius;
-        circle.position.y = Math.sin(angle) * radius;
+      if (object.userData?.uniforms && object.visible) {
+        object.userData.uniforms.u_time.value = time;
       }
     });
     
