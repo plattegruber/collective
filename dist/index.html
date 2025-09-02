@@ -7,6 +7,64 @@
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; }
     #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; }
+    
+    /* Ensure MindAR video element is visible */
+    video { 
+      position: absolute !important; 
+      top: 0 !important; 
+      left: 0 !important; 
+      width: 100% !important; 
+      height: 100% !important; 
+      object-fit: cover !important;
+      z-index: -1 !important;
+    }
+    
+    /* Ensure canvas is on top of video */
+    canvas {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      z-index: 1 !important;
+    }
+    
+    /* Custom transitions for artwork overlay */
+    .artwork-overlay {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    .artwork-overlay.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .artwork-overlay h2 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    
+    .artwork-overlay p {
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    
+    .artwork-overlay p:last-child {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
   </style>
 
   <script type="importmap">
@@ -17,9 +75,18 @@
     }
   }
   </script>
-  <script type="module" crossorigin src="/collective/assets/index-DPlmBSla.js"></script>
+  <script type="module" crossorigin src="/collective/assets/index-D0lbbOSR.js"></script>
+  <link rel="stylesheet" crossorigin href="/collective/assets/index-DH04yVJZ.css">
 </head>
 <body>
   <div id="loading">Loading…</div>
+  
+  <!-- Static artwork information overlay -->
+  <div id="artwork-info" class="artwork-overlay">
+    <h2 id="artwork-title"></h2>
+    <p id="artwork-artist"></p>
+    <p id="artwork-materials"></p>
+    <p id="artwork-description"></p>
+  </div>
 </body>
 </html>

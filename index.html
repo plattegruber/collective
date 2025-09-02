@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AR Gallery</title>
+  <link rel="stylesheet" href="/src/main.css">
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; }
     #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; }
@@ -27,7 +28,7 @@
       z-index: 1 !important;
     }
     
-    /* Static artwork information overlay */
+    /* Custom transitions for artwork overlay */
     .artwork-overlay {
       position: fixed;
       bottom: 20px;
@@ -37,12 +38,11 @@
       color: white;
       padding: 20px;
       border-radius: 12px;
-      font-family: system-ui, sans-serif;
       z-index: 10;
+      pointer-events: none;
       opacity: 0;
       transform: translateY(20px);
       transition: opacity 0.3s ease, transform 0.3s ease;
-      pointer-events: none;
     }
     
     .artwork-overlay.visible {
@@ -51,14 +51,14 @@
     }
     
     .artwork-overlay h2 {
-      margin: 0 0 8px 0;
       font-size: 1.5rem;
       font-weight: bold;
+      margin-bottom: 8px;
     }
     
     .artwork-overlay p {
       margin: 4px 0;
-      line-height: 1.4;
+      line-height: 1.6;
     }
     
     .artwork-overlay p:last-child {

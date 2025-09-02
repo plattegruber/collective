@@ -6,7 +6,7 @@
     "materials": "Oil on canvas",
     "description": "A serene maritime scene painted in deep blues and whites.",
     "overlay": {
-      "panel": { "w": 1.0, "h": 0.55, "z": 0.01 },
+      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
       "components": [
         {"kind": "title",  "text": "Blue Boat"},
         {"kind": "byline", "text": "Erik Daniel White, 2022"},
@@ -25,7 +25,7 @@
     "materials": "Acrylic on board",
     "description": "Vibrant sunset colors reflected in calm waters.",
     "overlay": {
-      "panel": { "w": 1.0, "h": 0.55, "z": 0.01 },
+      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
       "components": [
         {"kind": "title",  "text": "Sunset"},
         {"kind": "byline", "text": "H.O. Kensington, 2019"},
@@ -44,7 +44,7 @@
     "materials": "Mixed media",
     "description": "Modern abstract work exploring color and form.",
     "overlay": {
-      "panel": { "w": 1.0, "h": 0.55, "z": 0.01 },
+      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
       "components": [
         {"kind": "title",  "text": "Abstract Composition"},
         {"kind": "byline", "text": "Unknown Artist, 2023"},
