@@ -67,6 +67,80 @@
       font-size: 0.9rem;
       color: #ccc;
     }
+    
+    /* Onboarding modal */
+    #onboarding {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      color: white;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+    
+    #onboarding.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    .onboarding-content {
+      max-width: 500px;
+      text-align: center;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    
+    .onboarding-content h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+    
+    .onboarding-content .instructions {
+      font-size: 1.1rem;
+      line-height: 1.8;
+      margin-bottom: 2rem;
+      color: #ddd;
+    }
+    
+    .onboarding-content .step {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      text-align: left;
+      position: relative;
+    }
+    
+    .onboarding-content .step::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #888;
+    }
+    
+    #onboarding-ok {
+      background: white;
+      color: black;
+      border: none;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    #onboarding-ok:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+    }
+    
+    #onboarding-ok:active {
+      transform: translateY(0);
+    }
   </style>
   <script type="importmap">
   {
@@ -77,34 +151,63 @@
   }
   </script>
   <script type="module">
-    // Load and initialize the app
-    try {
-      console.log('Loading MindAR and THREE...');
-      
-      // Import THREE 
-      const THREE = await import('three');
-      window.THREE = THREE;
-      console.log('THREE loaded:', !!window.THREE);
-      
-      // Try to load MindAR from CDN directly
-      const mindARModule = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js');
-      window.MindARThree = mindARModule.MindARThree || mindARModule.default;
-      console.log('MindARThree loaded:', !!window.MindARThree);
-      console.log('MindAR module keys:', Object.keys(mindARModule));
-      
-      if (!window.MindARThree) {
-        throw new Error('MindARThree constructor not found');
+    // Start loading immediately in the background
+    const loadApp = async () => {
+      try {
+        console.log('Loading MindAR and THREE...');
+        
+        // Import THREE 
+        const THREE = await import('three');
+        window.THREE = THREE;
+        console.log('THREE loaded:', !!window.THREE);
+        
+        // Try to load MindAR from CDN directly
+        const mindARModule = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js');
+        window.MindARThree = mindARModule.MindARThree || mindARModule.default;
+        console.log('MindARThree loaded:', !!window.MindARThree);
+        console.log('MindAR module keys:', Object.keys(mindARModule));
+        
+        if (!window.MindARThree) {
+          throw new Error('MindARThree constructor not found');
+        }
+        
+        // Load our app
+        await import('/src/main.js');
+      } catch (error) {
+        console.error('Failed to load:', error);
+        document.getElementById('loading').textContent = 'Failed to load AR app. Please refresh.';
       }
-      
-      // Load our app
-      await import('/src/main.js');
-    } catch (error) {
-      console.error('Failed to load:', error);
-      document.getElementById('loading').textContent = 'Failed to load AR app. Please refresh.';
-    }
+    };
+    
+    // Start loading immediately
+    loadApp();
+    
+    // Handle onboarding dismissal
+    document.getElementById('onboarding-ok').addEventListener('click', () => {
+      const onboarding = document.getElementById('onboarding');
+      onboarding.classList.add('hidden');
+      // Remove from DOM after transition
+      setTimeout(() => {
+        onboarding.style.display = 'none';
+      }, 300);
+    });
   </script>
 </head>
 <body>
+  <!-- Onboarding modal -->
+  <div id="onboarding">
+    <div class="onboarding-content">
+      <h1>Welcome to AR Gallery</h1>
+      <div class="instructions">
+        <div class="step">Point your camera at an artwork</div>
+        <div class="step">Wait for the artwork to be recognized</div>
+        <div class="step">See information appear on screen</div>
+        <div class="step">Move camera away to hide info</div>
+      </div>
+      <button id="onboarding-ok">Got it!</button>
+    </div>
+  </div>
+  
   <div id="loading">Loading…</div>
   
   <!-- Static artwork information overlay -->
