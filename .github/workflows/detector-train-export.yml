@@ -1,0 +1,76 @@
+name: detector-train-export
+
+on:
+  push:
+    paths:
+      - 'assets/**'
+      - 'ml_pipeline/**'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push artifacts back
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for proper git history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install deps (CPU wheels)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install pillow opencv-python-headless numpy albumentations tqdm onnx onnxruntime
+          # Try to install TFJS deps, but don't fail if they're not available
+          pip install onnx-tf tensorflow tensorflowjs || echo "TFJS dependencies not available, will use ONNX fallback"
+
+      - name: Build dataset
+        run: |
+          python ml_pipeline/make_dataset.py \
+            --assets-dir assets \
+            --out out_dataset \
+            --img-size 640 \
+            --samples-per-piece 160
+
+      - name: Train detector
+        run: |
+          python ml_pipeline/train.py \
+            --data out_dataset \
+            --out out_models/ssdlite320 \
+            --epochs 12 \
+            --batch-size 16 \
+            --img-size 320
+
+      - name: Export for web (prefer TFJS, fallback ONNX)
+        run: |
+          python ml_pipeline/export_tfjs.py \
+            --onnx out_models/ssdlite320/best.onnx \
+            --labels out_models/ssdlite320/labels.json \
+            --out models \
+            --public public \
+            --prefer tfjs
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet HEAD -- models public/model-manifest.json; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit model artifacts
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --global user.name "model-bot"
+          git config --global user.email "model-bot@users.noreply.github.com"
+          git add models public/model-manifest.json
+          git diff --staged --stat
+          git commit -m "ci: update detector artifacts [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref_name }}
