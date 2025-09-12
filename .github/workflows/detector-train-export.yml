@@ -65,6 +65,16 @@ jobs:
             --public public \
             --prefer tfjs
 
+      - name: Copy model files to public directory
+        run: |
+          # Ensure the models are in public/ so Vite will include them in dist/
+          mkdir -p public/models
+          if [ -d "models/detector" ]; then
+            cp -r models/detector public/models/
+            echo "Copied models/detector to public/models/"
+          fi
+          ls -la public/models/
+
       - name: Install Node dependencies
         run: npm ci
 
