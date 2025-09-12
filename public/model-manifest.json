@@ -1,0 +1,7 @@
+{
+  "version": "2025-09-11T03:44:30Z",
+  "format": "onnx",
+  "path": "models/detector/model.onnx",
+  "labels": "models/detector/labels.json",
+  "sha256": "c574f17ddfeb493161089842f3a737468cd6cd630b39ff5722bb0a6ad18a49b7"
+}
