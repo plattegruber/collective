@@ -5,6 +5,8 @@ on:
     paths:
       - 'assets/**'
       - 'ml_pipeline/**'
+      - '.github/workflows/detector-train-export.yml'
+      - 'requirements.txt'
   workflow_dispatch: {}
 
 jobs:

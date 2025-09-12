@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      # Don't run if only these files changed (detector-train-export handles them)
+      - 'assets/**'
+      - 'ml_pipeline/**'
+      - '.github/workflows/detector-train-export.yml'
+      - 'requirements.txt'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +36,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
+      - name: Check for existing model
+        id: check_model
+        run: |
+          # Try to download the current deployed model if it exists
+          echo "Checking for existing deployed model..."
+          mkdir -p public/models/detector
+          
+          # Try to fetch the deployed model files
+          if curl -f -o public/model-manifest.json https://plattegruber.github.io/collective/model-manifest.json 2>/dev/null; then
+            echo "Found deployed model-manifest.json"
+            curl -f -o public/models/detector/model.onnx https://plattegruber.github.io/collective/models/detector/model.onnx 2>/dev/null || true
+            curl -f -o public/models/detector/labels.json https://plattegruber.github.io/collective/models/detector/labels.json 2>/dev/null || true
+            echo "model_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "No deployed model found"
+            echo "model_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Build
         run: npm run build
         
