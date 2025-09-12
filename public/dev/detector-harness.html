@@ -167,7 +167,7 @@ function decodeOutputsONNX(out, vw, vh) {
 function projectBoxes(bx, scores, labels, vw, vh, pad) {
   const { left, top, scale } = pad;
   const out = [];
-  const thr = 0.25;  // 25% confidence threshold (lower = more detections, higher = fewer false positives)
+  const thr = 0.70;  // 70% confidence threshold (only show confident detections)
   for (let i = 0; i < bx.length; i++) {
     const s = (scores[i] ?? scores.at?.(i) ?? 0);
     const cls = (labels[i] ?? 0);
