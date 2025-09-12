@@ -25,7 +25,8 @@ hud.textContent = `manifest: ${manifest.format}`;
 // Load labels for artwork names
 let LABELS = {};
 try {
-  const labelsPath = manifest.labels || `${BASE}/models/detector/labels.json`;
+  // Labels path from manifest, or default location (not under /dev/)
+  const labelsPath = manifest.labels ? `${BASE}/${manifest.labels}` : `${BASE}/models/detector/labels.json`;
   LABELS = await (await fetch(labelsPath)).json();
   console.log('Loaded labels:', LABELS);
 } catch (e) {
@@ -166,7 +167,7 @@ function decodeOutputsONNX(out, vw, vh) {
 function projectBoxes(bx, scores, labels, vw, vh, pad) {
   const { left, top, scale } = pad;
   const out = [];
-  const thr = 0.25;  // permissive; you can raise later
+  const thr = 0.25;  // 25% confidence threshold (lower = more detections, higher = fewer false positives)
   for (let i = 0; i < bx.length; i++) {
     const s = (scores[i] ?? scores.at?.(i) ?? 0);
     const cls = (labels[i] ?? 0);
