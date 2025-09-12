@@ -73,6 +73,34 @@ jobs:
             cp -r models/detector public/models/
             echo "Copied models/detector to public/models/"
           fi
+          
+          # Debug: Check what files we have
+          echo "=== Checking generated files ==="
+          echo "Root directory files:"
+          ls -la model-manifest.json 2>/dev/null || echo "No model-manifest.json in root"
+          echo ""
+          echo "Public directory files:"
+          ls -la public/model-manifest.json 2>/dev/null || echo "No model-manifest.json in public/"
+          ls -la public/models/
+          echo ""
+          echo "Models directory:"
+          ls -la models/ 2>/dev/null || echo "No models/ directory"
+
+      - name: Verify model files before build
+        run: |
+          echo "=== Verifying files before build ==="
+          if [ ! -f "public/model-manifest.json" ]; then
+            echo "ERROR: public/model-manifest.json not found!"
+            exit 1
+          fi
+          if [ ! -d "public/models/detector" ]; then
+            echo "ERROR: public/models/detector/ not found!"
+            exit 1
+          fi
+          echo "✅ All required files present"
+          echo "Contents of public/:"
+          ls -la public/
+          echo "Contents of public/models/:"
           ls -la public/models/
 
       - name: Install Node dependencies
@@ -80,6 +108,20 @@ jobs:
 
       - name: Build site with model
         run: npm run build
+
+      - name: Verify build output
+        run: |
+          echo "=== Checking dist/ contents ==="
+          echo "Root of dist/:"
+          ls -la dist/
+          echo ""
+          echo "Looking for model files in dist/:"
+          ls -la dist/model-manifest.json 2>/dev/null || echo "No model-manifest.json in dist/"
+          ls -la dist/models/ 2>/dev/null || echo "No models/ in dist/"
+          if [ -d "dist/models/detector" ]; then
+            echo "Contents of dist/models/detector/:"
+            ls -la dist/models/detector/
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
