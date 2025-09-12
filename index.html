@@ -7,25 +7,49 @@
   <link rel="stylesheet" href="/src/main.css">
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; }
-    #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; }
+    #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; z-index: 50; }
     
-    /* Ensure MindAR video element is visible */
-    video { 
-      position: absolute !important; 
-      top: 0 !important; 
-      left: 0 !important; 
-      width: 100% !important; 
-      height: 100% !important; 
-      object-fit: cover !important;
-      z-index: -1 !important;
+    /* Video and canvas for detector */
+    #video-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
     }
     
-    /* Ensure canvas is on top of video */
+    video { 
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+    
     canvas {
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
-      z-index: 1 !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+    
+    /* HUD for FPS/detection info */
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.55);
+      color: white;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-family: system-ui, monospace;
+      z-index: 20;
+      opacity: 0.7;
     }
     
     /* Custom transitions for artwork overlay */
@@ -141,57 +165,14 @@
     #onboarding-ok:active {
       transform: translateY(0);
     }
-  </style>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.150.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.150.0/examples/jsm/"
+    
+    /* Error state */
+    .error {
+      color: #ff6b6b;
+      text-align: center;
+      padding: 20px;
     }
-  }
-  </script>
-  <script type="module">
-    // Start loading immediately in the background
-    const loadApp = async () => {
-      try {
-        console.log('Loading MindAR and THREE...');
-        
-        // Import THREE 
-        const THREE = await import('three');
-        window.THREE = THREE;
-        console.log('THREE loaded:', !!window.THREE);
-        
-        // Try to load MindAR from CDN directly
-        const mindARModule = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js');
-        window.MindARThree = mindARModule.MindARThree || mindARModule.default;
-        console.log('MindARThree loaded:', !!window.MindARThree);
-        console.log('MindAR module keys:', Object.keys(mindARModule));
-        
-        if (!window.MindARThree) {
-          throw new Error('MindARThree constructor not found');
-        }
-        
-        // Load our app
-        await import('/src/main.js');
-      } catch (error) {
-        console.error('Failed to load:', error);
-        document.getElementById('loading').textContent = 'Failed to load AR app. Please refresh.';
-      }
-    };
-    
-    // Start loading immediately
-    loadApp();
-    
-    // Handle onboarding dismissal
-    document.getElementById('onboarding-ok').addEventListener('click', () => {
-      const onboarding = document.getElementById('onboarding');
-      onboarding.classList.add('hidden');
-      // Remove from DOM after transition
-      setTimeout(() => {
-        onboarding.style.display = 'none';
-      }, 300);
-    });
-  </script>
+  </style>
 </head>
 <body>
   <!-- Onboarding modal -->
@@ -208,7 +189,16 @@
     </div>
   </div>
   
-  <div id="loading">Loading…</div>
+  <div id="loading">Loading detector model...</div>
+  
+  <!-- Video and canvas for detector -->
+  <div id="video-container">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  
+  <!-- HUD -->
+  <div id="hud" style="display: none;">Initializing...</div>
   
   <!-- Static artwork information overlay -->
   <div id="artwork-info" class="artwork-overlay">
@@ -217,5 +207,335 @@
     <p id="artwork-materials"></p>
     <p id="artwork-description"></p>
   </div>
+
+  <script type="module">
+    // Configuration
+    const BASE_URL = import.meta.env.BASE_URL || '/';
+    const CONFIDENCE_THRESHOLD = 0.70; // 70% confidence
+    
+    // Global state
+    let artContent = {};
+    let labels = {};
+    let currentArtwork = null;
+    let session = null;
+    let isOnnxLoaded = false;
+    
+    // DOM elements
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const hud = document.getElementById('hud');
+    const loading = document.getElementById('loading');
+    const artworkOverlay = document.getElementById('artwork-info');
+    
+    // Handle onboarding dismissal
+    document.getElementById('onboarding-ok').addEventListener('click', () => {
+      const onboarding = document.getElementById('onboarding');
+      onboarding.classList.add('hidden');
+      setTimeout(() => {
+        onboarding.style.display = 'none';
+      }, 300);
+    });
+    
+    // Load artwork content
+    async function loadArtworkContent() {
+      try {
+        const response = await fetch(`${BASE_URL}data/art-content.v1.json`);
+        artContent = await response.json();
+        console.log('Loaded artwork content:', Object.keys(artContent).length, 'pieces');
+      } catch (error) {
+        console.error('Failed to load artwork content:', error);
+      }
+    }
+    
+    // Load model
+    async function loadModel() {
+      try {
+        // Load manifest
+        const manifestResponse = await fetch(`${BASE_URL}model-manifest.json`);
+        const manifest = await manifestResponse.json();
+        console.log('Model manifest:', manifest);
+        
+        // Load labels
+        const labelsPath = manifest.labels ? `${BASE_URL}${manifest.labels}` : `${BASE_URL}models/detector/labels.json`;
+        const labelsResponse = await fetch(labelsPath);
+        labels = await labelsResponse.json();
+        console.log('Loaded labels:', labels);
+        
+        // Load ONNX Runtime
+        if (!isOnnxLoaded) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/ort.min.js';
+            script.onload = () => {
+              isOnnxLoaded = true;
+              resolve();
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        
+        // Create ONNX session
+        const modelPath = `${BASE_URL}${manifest.path || 'models/detector/model.onnx'}`;
+        session = await window.ort.InferenceSession.create(modelPath, {
+          executionProviders: ['wasm', 'webgl']
+        });
+        
+        console.log('Model loaded successfully');
+        loading.textContent = 'Starting camera...';
+        
+      } catch (error) {
+        console.error('Failed to load model:', error);
+        loading.innerHTML = '<div class="error">Failed to load detector model. Please refresh.</div>';
+        throw error;
+      }
+    }
+    
+    // Process video frame
+    async function processFrame() {
+      if (!session || video.readyState < 2) return [];
+      
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const sz = 320; // Model input size
+      
+      // Calculate scaling
+      const scale = Math.min(sz/vh, sz/vw);
+      const nw = (vw * scale) | 0;
+      const nh = (vh * scale) | 0;
+      const top = ((sz - nh) / 2) | 0;
+      const left = ((sz - nw) / 2) | 0;
+      
+      // Draw to offscreen canvas
+      const offCanvas = new OffscreenCanvas(sz, sz);
+      const offCtx = offCanvas.getContext('2d');
+      offCtx.fillStyle = 'black';
+      offCtx.fillRect(0, 0, sz, sz);
+      offCtx.drawImage(video, 0, 0, vw, vh, left, top, nw, nh);
+      
+      // Get image data and convert to NCHW
+      const imageData = offCtx.getImageData(0, 0, sz, sz);
+      const chw = new Float32Array(3 * sz * sz);
+      for (let y = 0; y < sz; y++) {
+        for (let x = 0; x < sz; x++) {
+          const i = y * sz + x;
+          const j = i * 4;
+          chw[0 * sz * sz + i] = imageData.data[j] / 255;     // R
+          chw[1 * sz * sz + i] = imageData.data[j + 1] / 255; // G
+          chw[2 * sz * sz + i] = imageData.data[j + 2] / 255; // B
+        }
+      }
+      
+      // Run inference
+      const input = new window.ort.Tensor('float32', chw, [1, 3, sz, sz]);
+      const output = await session.run({ images: input });
+      
+      // Decode outputs
+      const boxes = decodeOutputs(output, vw, vh, { left, top, scale });
+      return boxes;
+    }
+    
+    // Decode ONNX outputs
+    function decodeOutputs(output, vw, vh, pad) {
+      const names = Object.keys(output);
+      let boxes = [];
+      
+      // Try to find boxes, scores, labels tensors
+      if (names.includes('boxes') && names.includes('scores') && names.includes('labels')) {
+        const bxT = output['boxes'];
+        const scT = output['scores'];
+        const lbT = output['labels'];
+        const N = bxT.dims[1] || bxT.dims[0];
+        
+        for (let i = 0; i < N; i++) {
+          const score = scT.data[i];
+          const label = lbT.data[i];
+          
+          if (score >= CONFIDENCE_THRESHOLD && label > 0) {
+            const offset = i * 4;
+            let [x1, y1, x2, y2] = [
+              bxT.data[offset],
+              bxT.data[offset + 1],
+              bxT.data[offset + 2],
+              bxT.data[offset + 3]
+            ];
+            
+            // Reverse letterbox padding
+            x1 = (x1 - pad.left) / pad.scale;
+            y1 = (y1 - pad.top) / pad.scale;
+            x2 = (x2 - pad.left) / pad.scale;
+            y2 = (y2 - pad.top) / pad.scale;
+            
+            // Clamp to video bounds
+            x1 = Math.max(0, Math.min(vw, x1));
+            y1 = Math.max(0, Math.min(vh, y1));
+            x2 = Math.max(0, Math.min(vw, x2));
+            y2 = Math.max(0, Math.min(vh, y2));
+            
+            if (x2 > x1 && y2 > y1) {
+              boxes.push({ x1, y1, x2, y2, score, label });
+            }
+          }
+        }
+      }
+      
+      return boxes;
+    }
+    
+    // Draw bounding boxes
+    function drawBoxes(boxes) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.setLineDash([8, 6]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#00e0ff';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.font = '16px system-ui';
+      
+      for (const box of boxes) {
+        const x = box.x1;
+        const y = box.y1;
+        const w = box.x2 - box.x1;
+        const h = box.y2 - box.y1;
+        
+        // Draw box
+        ctx.strokeRect(x, y, w, h);
+        
+        // Draw label
+        const labelText = labels[box.label] || `class_${box.label}`;
+        const confidence = `${(box.score * 100).toFixed(0)}%`;
+        const text = `${labelText} ${confidence}`;
+        
+        const metrics = ctx.measureText(text);
+        ctx.fillRect(x, y - 25, metrics.width + 10, 22);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(text, x + 5, y - 8);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      }
+    }
+    
+    // Update artwork overlay
+    function updateArtworkOverlay(boxes) {
+      if (boxes.length === 0) {
+        // No detection - hide overlay
+        if (currentArtwork) {
+          artworkOverlay.classList.remove('visible');
+          currentArtwork = null;
+        }
+        return;
+      }
+      
+      // Get the highest confidence detection
+      const bestBox = boxes.reduce((best, box) => 
+        box.score > best.score ? box : best
+      );
+      
+      const labelText = labels[bestBox.label];
+      if (!labelText) return;
+      
+      // Map label to artwork ID
+      // Labels are like "2d:byrons_painting", we need to find matching artwork
+      const artworkId = findArtworkByLabel(labelText);
+      
+      if (artworkId && artworkId !== currentArtwork) {
+        const artwork = artContent[artworkId];
+        if (artwork) {
+          document.getElementById('artwork-title').textContent = artwork.title;
+          document.getElementById('artwork-artist').textContent = `${artwork.artist}, ${artwork.year}`;
+          document.getElementById('artwork-materials').textContent = artwork.materials;
+          document.getElementById('artwork-description').textContent = artwork.description;
+          
+          artworkOverlay.classList.add('visible');
+          currentArtwork = artworkId;
+        }
+      }
+    }
+    
+    // Map label to artwork ID
+    function findArtworkByLabel(label) {
+      // Simple mapping - you might need to adjust based on your data
+      // For now, just use the first artwork that matches
+      const labelLower = label.toLowerCase();
+      
+      for (const [id, artwork] of Object.entries(artContent)) {
+        if (labelLower.includes(artwork.title.toLowerCase()) ||
+            labelLower.includes(artwork.artist.toLowerCase().split(' ')[0])) {
+          return id;
+        }
+      }
+      
+      // Fallback: return first artwork for testing
+      return Object.keys(artContent)[0];
+    }
+    
+    // Main detection loop
+    let lastTime = performance.now();
+    let fps = 0;
+    
+    async function detectLoop() {
+      try {
+        const boxes = await processFrame();
+        drawBoxes(boxes);
+        updateArtworkOverlay(boxes);
+        
+        // Update FPS
+        const now = performance.now();
+        fps = 1000 / (now - lastTime);
+        lastTime = now;
+        
+        // Update HUD
+        if (boxes.length > 0) {
+          const detections = boxes.map(b => labels[b.label] || `class_${b.label}`).join(', ');
+          hud.textContent = `${fps.toFixed(1)} fps • Detected: ${detections}`;
+        } else {
+          hud.textContent = `${fps.toFixed(1)} fps • Scanning...`;
+        }
+        
+      } catch (error) {
+        console.error('Detection error:', error);
+      }
+      
+      requestAnimationFrame(detectLoop);
+    }
+    
+    // Initialize app
+    async function init() {
+      try {
+        // Load data in parallel
+        await Promise.all([
+          loadArtworkContent(),
+          loadModel()
+        ]);
+        
+        // Start camera
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        video.srcObject = stream;
+        
+        // Wait for video to be ready
+        await new Promise(resolve => {
+          video.onloadedmetadata = resolve;
+        });
+        
+        // Hide loading, show HUD
+        loading.style.display = 'none';
+        hud.style.display = 'block';
+        
+        // Start detection loop
+        detectLoop();
+        
+      } catch (error) {
+        console.error('Initialization failed:', error);
+        loading.innerHTML = '<div class="error">Failed to initialize. Please check camera permissions and refresh.</div>';
+      }
+    }
+    
+    // Start app
+    init();
+  </script>
 </body>
 </html>
