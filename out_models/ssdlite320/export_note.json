@@ -1,1 +1,0 @@
-{"onnx": "out_models/ssdlite320/best.onnx", "hint": "Browser will decode raw heads + run NMS; tensor names may differ \u2014 inspect session outputs."}
