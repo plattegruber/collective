@@ -32,8 +32,10 @@ jobs:
       - name: Install Python deps (CPU wheels)
         run: |
           python -m pip install --upgrade pip
+          # Install PyTorch CPU version
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install pillow opencv-python-headless numpy albumentations tqdm onnx onnxruntime
+          # Install requirements
+          pip install -r requirements.txt
           # Try to install TFJS deps, but don't fail if they're not available
           pip install onnx-tf tensorflow tensorflowjs || echo "TFJS dependencies not available, will use ONNX fallback"
 
