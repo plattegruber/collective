@@ -1,59 +1,23 @@
 {
-  "EDW-2022-BlueBoat": {
-    "title": "Blue Boat",
-    "artist": "Erik Daniel White",
+  "2d:byrons_painting": {
+    "title": "Untitled",
+    "artist": "Byron Anway",
     "year": 2022,
     "materials": "Oil on canvas",
-    "description": "A serene maritime scene painted in deep blues and whites.",
-    "overlay": {
-      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
-      "components": [
-        {"kind": "title",  "text": "Blue Boat"},
-        {"kind": "byline", "text": "Erik Daniel White, 2022"},
-        {"kind": "body",   "text": "Oil on canvas"}
-      ]
-    },
-    "assets": {
-      "image": "/assets/edw/blueboat.jpg",
-      "audioGuide": "/assets/edw/blueboat.mp3"
-    }
+    "description": "A gift to Andrea."
   },
-  "HOK-2019-Sunset": {
-    "title": "Sunset",
-    "artist": "H.O. Kensington",
-    "year": 2019,
-    "materials": "Acrylic on board",
-    "description": "Vibrant sunset colors reflected in calm waters.",
-    "overlay": {
-      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
-      "components": [
-        {"kind": "title",  "text": "Sunset"},
-        {"kind": "byline", "text": "H.O. Kensington, 2019"},
-        {"kind": "body",   "text": "Acrylic on board"}
-      ]
-    },
-    "assets": {
-      "image": "/assets/hok/sunset.jpg",
-      "audioGuide": "/assets/hok/sunset.mp3"
-    }
-  },
-  "ART-2023-Abstract": {
-    "title": "Abstract Composition",
-    "artist": "Unknown Artist",
+  "2d:horse_swing": {
+    "title": "Untitled",
+    "artist": "Jewelya Coffey",
     "year": 2023,
-    "materials": "Mixed media",
-    "description": "Modern abstract work exploring color and form.",
-    "overlay": {
-      "panel": { "w": 1.0, "h": 1.0, "z": 0.01 },
-      "components": [
-        {"kind": "title",  "text": "Abstract Composition"},
-        {"kind": "byline", "text": "Unknown Artist, 2023"},
-        {"kind": "body",   "text": "Mixed media"}
-      ]
-    },
-    "assets": {
-      "image": "/assets/unknown/abstract.jpg",
-      "audioGuide": "/assets/unknown/abstract.mp3"
-    }
+    "materials": "Gouache and gel pen on paper",
+    "description": ""
+  },
+  "2d:opals_departure": {
+    "title": "Opal's Departure",
+    "artist": "Amy Cutler",
+    "year": 2011,
+    "materials": "Lithograph, offset printed",
+    "description": "The protagonist of Amy Cutler’s beautifully rendered 9-color lithograph, made in an edition of 50, appears to have packed in a hurry—her suitcases are bursting at the seams. Meanwhile, she’s used her own head as a stepping stool to take an improvised seat on top of a barrel. From the look of it, her body has set out on an impromptu journey, to the consternation of her head. Whether the scene is a regretful memory, a warning against extemporaneity, or a reminder of the humor in folly, we can all relate."
   }
 }

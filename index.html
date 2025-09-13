@@ -456,19 +456,8 @@
     
     // Map label to artwork ID
     function findArtworkByLabel(label) {
-      // Simple mapping - you might need to adjust based on your data
-      // For now, just use the first artwork that matches
-      const labelLower = label.toLowerCase();
-      
-      for (const [id, artwork] of Object.entries(artContent)) {
-        if (labelLower.includes(artwork.title.toLowerCase()) ||
-            labelLower.includes(artwork.artist.toLowerCase().split(' ')[0])) {
-          return id;
-        }
-      }
-      
-      // Fallback: return first artwork for testing
-      return Object.keys(artContent)[0];
+      // Label from detector is already the artwork ID (e.g., "2d:byrons_painting")
+      return artContent[label] ? label : null;
     }
     
     // Main detection loop
