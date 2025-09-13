@@ -37,20 +37,6 @@
       pointer-events: none;
     }
     
-    /* HUD for FPS/detection info */
-    #hud {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      background: rgba(0, 0, 0, 0.55);
-      color: white;
-      padding: 8px 10px;
-      border-radius: 10px;
-      font-size: 12px;
-      font-family: system-ui, monospace;
-      z-index: 20;
-      opacity: 0.7;
-    }
     
     /* Custom transitions for artwork overlay */
     .artwork-overlay {
@@ -197,9 +183,6 @@
     <canvas id="canvas"></canvas>
   </div>
   
-  <!-- HUD -->
-  <div id="hud" style="display: none;">Initializing...</div>
-  
   <!-- Static artwork information overlay -->
   <div id="artwork-info" class="artwork-overlay">
     <h2 id="artwork-title"></h2>
@@ -224,7 +207,6 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const hud = document.getElementById('hud');
     const loading = document.getElementById('loading');
     const artworkOverlay = document.getElementById('artwork-info');
     
@@ -461,27 +443,12 @@
     }
     
     // Main detection loop
-    let lastTime = performance.now();
-    let fps = 0;
     
     async function detectLoop() {
       try {
         const boxes = await processFrame();
         drawBoxes(boxes);
         updateArtworkOverlay(boxes);
-        
-        // Update FPS
-        const now = performance.now();
-        fps = 1000 / (now - lastTime);
-        lastTime = now;
-        
-        // Update HUD
-        if (boxes.length > 0) {
-          const detections = boxes.map(b => labels[b.label] || `class_${b.label}`).join(', ');
-          hud.textContent = `${fps.toFixed(1)} fps • Detected: ${detections}`;
-        } else {
-          hud.textContent = `${fps.toFixed(1)} fps • Scanning...`;
-        }
         
       } catch (error) {
         console.error('Detection error:', error);
@@ -510,9 +477,8 @@
           video.onloadedmetadata = resolve;
         });
         
-        // Hide loading, show HUD
+        // Hide loading
         loading.style.display = 'none';
-        hud.style.display = 'block';
         
         // Start detection loop
         detectLoop();
