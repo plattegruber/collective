@@ -6,68 +6,93 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development
 - `npm run dev` - Start development server on port 3000 (HTTPS required for camera access on mobile)
-- `npm run build` - Build for production (outputs to `dist/`)  
+- `npm run build` - Build for production (outputs to `dist/`)
 - `npm run serve` - Preview production build locally
 
 ### Dependencies
-- `npm install` - Install all dependencies (Vite, Three.js)
+- `npm install` - Install all dependencies (Vite, Three.js, Tailwind CSS)
 
 ## Architecture
 
-This is a **MindAR Three.js Gallery** - an AR application for overlaying artwork information using image tracking.
+This is an **ONNX-powered AR Gallery** - a web application that uses computer vision to recognize artworks and display information overlays.
 
 ### Core Architecture Pattern
 
-The app uses a **versioned content system** for hot-swapping gallery data without rebuilding:
+The app is a **single-page application** with embedded JavaScript that uses ONNX Runtime for artwork detection:
 
-1. **Version Control Center** (`src/main.js`): Central `VERSIONS` object controls which data files to load
-2. **Multi-target Tracking**: Single `.mind` file tracks multiple artworks simultaneously  
-3. **Decoupled Content**: JSON files define artwork info separately from tracking data
+1. **ONNX Model Pipeline**: Custom-trained detector model recognizes multiple artworks simultaneously
+2. **Real-time Detection**: Continuous video processing with configurable confidence thresholds (70%)
+3. **Overlay System**: Dynamic information overlays triggered by artwork detection
 
 ### Key Files & Responsibilities
 
-- **`src/main.js`**: Bootstrap and version configuration. Contains the `VERSIONS` object that controls which data files are loaded
-- **`src/tracker.js`**: MindAR setup, camera management, anchor creation, and target detection events
-- **`src/overlays.js`**: Three.js overlay generation (panels, text textures, optional thumbnails)
-- **`index.html`**: CDN imports (MindAR, Three.js) and app initialization
-- **`targets/gallery-v*.mind`**: Compiled image targets for MindAR recognition
-- **`targets/targets-map.v*.json`**: Maps MindAR target indices to stable artwork IDs
-- **`data/art-content.v*.json`**: Complete artwork metadata and overlay specifications
+- **`index.html`**: Complete application with embedded JavaScript - camera setup, ONNX model loading, detection loop, and UI overlays
+- **`public/models/detector/model.onnx`**: Trained ONNX model for artwork recognition
+- **`public/models/detector/labels.json`**: Maps model class IDs to artwork identifiers (e.g., `{"1": "2d:byrons_painting"}`)
+- **`public/data/art-content.v1.json`**: Artwork metadata including title, artist, year, materials, description
+- **`public/model-manifest.json`**: Model versioning and path configuration
+- **`vite.config.js`**: Build configuration with base path `/collective/` and mobile-optimized dev server
 
 ### Data Flow
 
-1. `main.js` loads target map and content based on version config
-2. `tracker.js` creates MindAR instance and anchors for each target
-3. `overlays.js` generates Three.js overlay groups from artwork data
-4. Target detection triggers overlay show/hide with fade animations
+1. App loads ONNX model and artwork content in parallel during initialization
+2. Camera stream feeds into real-time detection pipeline (320x320 input size)
+3. Model outputs bounding boxes, confidence scores, and class labels
+4. Detections above 70% confidence threshold trigger overlay updates
+5. Artwork information displays based on label mapping to content database
 
-### Version Management System
+### Detection System
 
-**When to bump versions:**
-- New artwork images → Increment `mindFile` and `targetsMap` versions  
-- Text/layout/audio changes → Only increment `artContent` version
-- Always update corresponding version in `VERSIONS` object in `src/main.js`
+**Model Architecture:**
+- Input: 320x320 RGB images (letterboxed and scaled from camera feed)
+- Output: Bounding boxes, confidence scores, class labels
+- Runtime: ONNX Runtime Web with WebGL/WebAssembly fallback
+- Performance: Optimized for mobile browsers
 
-**Example version update:**
+**Detection Pipeline:**
 ```javascript
-export const VERSIONS = {
-  targetsMap: 'v2',              // ← Updated for new targets
-  artContent: 'v1',              // ← Keep same if only images changed
-  mindFile: 'gallery-v2.mind',   // ← Updated for new .mind file
-  maxTrack: 2                    // ← Max simultaneous tracking
-};
+// Frame processing pipeline
+processFrame() → decodeOutputs() → drawBoxes() → updateArtworkOverlay()
 ```
 
-### External Dependencies (CDN)
+**Confidence Threshold:** 70% (configurable via `CONFIDENCE_THRESHOLD` constant)
 
-- **MindAR**: `mind-ar@1.2.5` (image tracking)
-- **Three.js**: `three@0.150.0` (3D rendering)
+### Content Management
 
-Both loaded via CDN in `index.html` and attached to `window` object for module access.
+**Adding New Artworks:**
+1. Train new model with additional artwork images
+2. Update `public/models/detector/labels.json` with new class mappings
+3. Add artwork metadata to `public/data/art-content.v1.json`
+4. Update `public/model-manifest.json` with new model version/hash
+5. Deploy updated model and content files
 
-### Mobile-First Considerations
+**Data Structure:**
+```javascript
+// labels.json - maps model classes to artwork IDs
+{"1": "2d:byrons_painting", "2": "2d:horse_swing"}
 
-- Requires HTTPS for camera access
-- Development server configured for `0.0.0.0:3000` for mobile testing
+// art-content.v1.json - artwork metadata
+{
+  "2d:byrons_painting": {
+    "title": "Untitled",
+    "artist": "Byron Anway",
+    "year": 2022,
+    "materials": "Oil on canvas",
+    "description": "A gift to Andrea."
+  }
+}
+```
+
+### Deployment Configuration
+
+**Build Setup:**
+- Static deployment via Vite build system
+- Base path: `/collective/` (configured in `vite.config.js`)
+- Output directory: `dist/`
+- Deployment target: Static hosting (project.toml indicates Paketo static buildpack)
+
+**Mobile Considerations:**
+- HTTPS required for camera access
+- Development server on `0.0.0.0:3000` for mobile testing
 - Optimized for iOS Safari and Android Chrome
-- `maxTrack: 2` prevents performance issues on mobile devices
+- Responsive overlay system with touch-friendly interactions
