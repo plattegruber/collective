@@ -76,13 +76,14 @@
 
     /* Phrase styling - positioned over brackets */
     .phrase{
-      position:absolute;inset:0;display:grid;place-items:center;
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
       pointer-events:auto; /* allow tap to cycle */
       text-align:center;letter-spacing:.01em;
       font-weight:600;
       font-size:clamp(18px, 3.6vmin, 28px);
       color:var(--ui-fg-dim);
-      line-height:1.25;max-inline-size:min(80vw, 26ch)
+      line-height:1.25;max-inline-size:min(80vw, 26ch);
+      padding:0 clamp(8px,2vw,16px); /* slight padding to prevent edge clipping */
     }
 
     /* Subtle sheen that sweeps across the text */
