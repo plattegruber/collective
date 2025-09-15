@@ -6,9 +6,15 @@
   <title>AR Gallery</title>
   <link rel="stylesheet" href="/src/main.css">
   <style>
-    html, body { margin:0; height:100%; overflow:hidden; background:#000; }
-    #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; z-index: 50; }
-    
+    :root{
+      --ui-fg: #ffffff;
+      --ui-fg-dim: #ffffffcc; /* 80% */
+      --ui-shadow: 0 10px 40px rgba(0,0,0,.22);
+      --bracket-thickness: 2.4; /* in SVG units */
+    }
+    html,body{height:100%;margin:0;background:#111;color:var(--ui-fg);font:16px/1.2 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"}
+    .app{position:relative;inline-size:100%;block-size:100%;overflow:hidden;touch-action:manipulation}
+
     /* Video and canvas for detector */
     #video-container {
       position: absolute;
@@ -16,17 +22,17 @@
       width: 100%;
       height: 100%;
     }
-    
-    video { 
+
+    video {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
       object-fit: cover;
-      z-index: 0;
+      transform: translateZ(0);
+      background: #000; /* fallback if no camera */
     }
-    
+
     canvas {
       position: absolute;
       top: 0;
@@ -36,8 +42,62 @@
       z-index: 1;
       pointer-events: none;
     }
-    
-    
+
+    #loading { position:fixed; inset:0; display:grid; place-items:center; color:#fff; font-family: system-ui, sans-serif; z-index: 50; }
+
+    /* Responsive overlay container */
+    .overlay{
+      position:absolute;inset:0;display:grid;place-items:center;padding:clamp(12px,4vmin,28px);
+      pointer-events:none; /* let camera gestures pass through */
+    }
+
+    /* Soft vignette for legibility */
+    .overlay::before{
+      content:"";position:absolute;inset:0;
+      background:radial-gradient(60% 60% at 50% 45%, rgba(0,0,0,.0) 0%, rgba(0,0,0,.35) 100%);
+      pointer-events:none;
+    }
+
+    /* Stack: brackets + phrase */
+    .hud{display:grid;gap:clamp(10px,2.6vmin,18px);justify-items:center;filter:drop-shadow(var(--ui-shadow))}
+
+    /* SVG scales with viewport, maintains line proportions via vector-effect */
+    .brackets{inline-size:min(70vmin, 560px);block-size:auto;opacity:.95}
+    .brackets line, .brackets path{
+      stroke:var(--ui-fg);fill:none;stroke-linecap:round;stroke-linejoin:round;
+      stroke-width:var(--bracket-thickness);
+      vector-effect:non-scaling-stroke;
+    }
+    /* Gentle pulse to feel alive (disabled for reduced motion) */
+    @media (prefers-reduced-motion: no-preference){
+      .pulse{animation:pulse 2.4s ease-in-out infinite}
+      @keyframes pulse{0%,100%{opacity:.85}50%{opacity:1}}
+    }
+
+    /* Phrase styling */
+    .phrase{
+      pointer-events:auto; /* allow tap to cycle */
+      text-align:center;letter-spacing:.01em;
+      font-weight:600;
+      font-size:clamp(18px, 3.6vmin, 28px);
+      color:var(--ui-fg-dim);
+      line-height:1.25;max-inline-size:min(80vw, 26ch)
+    }
+
+    /* Subtle sheen that sweeps across the text */
+    .phrase.shimmer{
+      background:linear-gradient(90deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,1) 20%, rgba(255,255,255,.6) 40%, rgba(255,255,255,.85) 60%, rgba(255,255,255,.6) 80%, rgba(255,255,255,.5) 100%);
+      -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(var(--ui-shadow));
+      background-size:200% auto;
+      animation:sheen 3.5s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce){ .phrase.shimmer{animation:none;background-size:auto;color:var(--ui-fg-dim)} }
+    @keyframes sheen{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* Hide helper */
+    .is-hidden{opacity:0;visibility:hidden;transition:opacity .28s ease, visibility .28s step-end}
+    .is-visible{opacity:1;visibility:visible;transition:opacity .28s ease}
+
     /* Custom transitions for artwork overlay */
     .artwork-overlay {
       position: fixed;
@@ -55,103 +115,29 @@
       transform: translateY(20px);
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
-    
+
     .artwork-overlay.visible {
       opacity: 1;
       transform: translateY(0);
     }
-    
+
     .artwork-overlay h2 {
       font-size: 1.5rem;
       font-weight: bold;
       margin-bottom: 8px;
     }
-    
+
     .artwork-overlay p {
       margin: 4px 0;
       line-height: 1.6;
     }
-    
+
     .artwork-overlay p:last-child {
       margin-top: 12px;
       font-size: 0.9rem;
       color: #ccc;
     }
-    
-    /* Onboarding modal */
-    #onboarding {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      color: white;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      opacity: 1;
-      transition: opacity 0.3s ease;
-    }
-    
-    #onboarding.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    
-    .onboarding-content {
-      max-width: 500px;
-      text-align: center;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-    
-    .onboarding-content h1 {
-      font-size: 2rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-    }
-    
-    .onboarding-content .instructions {
-      font-size: 1.1rem;
-      line-height: 1.8;
-      margin-bottom: 2rem;
-      color: #ddd;
-    }
-    
-    .onboarding-content .step {
-      margin: 1rem 0;
-      padding-left: 1.5rem;
-      text-align: left;
-      position: relative;
-    }
-    
-    .onboarding-content .step::before {
-      content: '→';
-      position: absolute;
-      left: 0;
-      color: #888;
-    }
-    
-    #onboarding-ok {
-      background: white;
-      color: black;
-      border: none;
-      padding: 12px 32px;
-      font-size: 1rem;
-      font-weight: 600;
-      border-radius: 50px;
-      cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    
-    #onboarding-ok:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
-    }
-    
-    #onboarding-ok:active {
-      transform: translateY(0);
-    }
-    
+
     /* Error state */
     .error {
       color: #ff6b6b;
@@ -161,34 +147,40 @@
   </style>
 </head>
 <body>
-  <!-- Onboarding modal -->
-  <div id="onboarding">
-    <div class="onboarding-content">
-      <h1>Welcome to AR Gallery</h1>
-      <div class="instructions">
-        <div class="step">Point your camera at an artwork</div>
-        <div class="step">Wait for the artwork to be recognized</div>
-        <div class="step">See information appear on screen</div>
-        <div class="step">Move camera away to hide info</div>
-      </div>
-      <button id="onboarding-ok">Got it!</button>
+  <div class="app" id="app">
+    <div id="loading">Loading detector model...</div>
+
+    <!-- Video and canvas for detector -->
+    <div id="video-container">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
     </div>
-  </div>
-  
-  <div id="loading">Loading detector model...</div>
-  
-  <!-- Video and canvas for detector -->
-  <div id="video-container">
-    <video id="video" autoplay muted playsinline></video>
-    <canvas id="canvas"></canvas>
-  </div>
-  
-  <!-- Static artwork information overlay -->
-  <div id="artwork-info" class="artwork-overlay">
-    <h2 id="artwork-title"></h2>
-    <p id="artwork-artist"></p>
-    <p id="artwork-materials"></p>
-    <p id="artwork-description"></p>
+
+    <!-- Responsive overlay (SVG + text) -->
+    <div class="overlay is-visible" id="overlay" aria-hidden="true">
+      <div class="hud">
+        <!-- Corner brackets (responsive SVG) -->
+        <svg class="brackets pulse" viewBox="0 0 100 64" role="img" aria-label="framing guides">
+          <!-- Top-left -->
+          <path d="M8 18 L8 8 L28 8" />
+          <!-- Top-right -->
+          <path d="M92 18 L92 8 L72 8" />
+          <!-- Bottom-left -->
+          <path d="M8 46 L8 56 L28 56" />
+          <!-- Bottom-right -->
+          <path d="M92 46 L92 56 L72 56" />
+        </svg>
+        <div class="phrase shimmer" id="phrase" tabindex="0" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- Static artwork information overlay -->
+    <div id="artwork-info" class="artwork-overlay">
+      <h2 id="artwork-title"></h2>
+      <p id="artwork-artist"></p>
+      <p id="artwork-materials"></p>
+      <p id="artwork-description"></p>
+    </div>
   </div>
 
   <script type="module">
@@ -202,22 +194,59 @@
     let currentArtwork = null;
     let session = null;
     let isOnnxLoaded = false;
-    
+
     // DOM elements
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const loading = document.getElementById('loading');
     const artworkOverlay = document.getElementById('artwork-info');
-    
-    // Handle onboarding dismissal
-    document.getElementById('onboarding-ok').addEventListener('click', () => {
-      const onboarding = document.getElementById('onboarding');
-      onboarding.classList.add('hidden');
-      setTimeout(() => {
-        onboarding.style.display = 'none';
-      }, 300);
-    });
+    const overlayEl = document.getElementById('overlay');
+    const phraseEl = document.getElementById('phrase');
+
+    // Phrase bank for dynamic overlay
+    const phrases = [
+      'find the art.',
+      'bring me to the canvas.',
+      'show me what\'s on the wall.',
+      'point me at something beautiful.',
+      'let\'s see the art.',
+      'move closer to the piece.',
+      'frame the artwork, I\'ll do the rest.',
+      'hold steady for a moment.',
+      'line me up with the picture.',
+      'pan slowly across the piece.'
+    ];
+
+    function pickNewPhrase(){
+      const current = phraseEl.textContent;
+      const options = current ? phrases.filter(p => p !== current) : phrases;
+      const next = options[Math.floor(Math.random()*options.length)];
+      phraseEl.classList.remove('shimmer');
+      // quick fade swap
+      phraseEl.style.opacity = 0;
+      window.setTimeout(()=>{
+        phraseEl.textContent = next;
+        phraseEl.style.opacity = 1;
+        phraseEl.classList.add('shimmer');
+      }, 140);
+    }
+
+    // Overlay show/hide API
+    function hideOverlay(){ overlayEl.classList.remove('is-visible'); overlayEl.classList.add('is-hidden'); }
+    function showOverlay(){ overlayEl.classList.remove('is-hidden'); overlayEl.classList.add('is-visible'); }
+
+    // Initialize phrase and interaction
+    function initOverlay() {
+      pickNewPhrase();
+
+      // Tap/click to cycle (esp. helpful on desktop while testing)
+      phraseEl.addEventListener('click', pickNewPhrase);
+      phraseEl.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' '){ pickNewPhrase(); }});
+
+      // Optional: hide after tap on overlay area (mobile affordance)
+      overlayEl.addEventListener('click', () => { hideOverlay(); });
+    }
     
     // Load artwork content
     async function loadArtworkContent() {
@@ -402,26 +431,29 @@
     // Update artwork overlay
     function updateArtworkOverlay(boxes) {
       if (boxes.length === 0) {
-        // No detection - hide overlay
+        // No detection - hide artwork overlay and show instruction overlay
         if (currentArtwork) {
           artworkOverlay.classList.remove('visible');
           currentArtwork = null;
+          showOverlay();
+          // Cycle phrase when tracking is lost to keep it fresh
+          pickNewPhrase();
         }
         return;
       }
-      
+
       // Get the highest confidence detection
-      const bestBox = boxes.reduce((best, box) => 
+      const bestBox = boxes.reduce((best, box) =>
         box.score > best.score ? box : best
       );
-      
+
       const labelText = labels[bestBox.label];
       if (!labelText) return;
-      
+
       // Map label to artwork ID
       // Labels are like "2d:byrons_painting", we need to find matching artwork
       const artworkId = findArtworkByLabel(labelText);
-      
+
       if (artworkId && artworkId !== currentArtwork) {
         const artwork = artContent[artworkId];
         if (artwork) {
@@ -429,9 +461,11 @@
           document.getElementById('artwork-artist').textContent = `${artwork.artist}, ${artwork.year}`;
           document.getElementById('artwork-materials').textContent = artwork.materials;
           document.getElementById('artwork-description').textContent = artwork.description;
-          
+
           artworkOverlay.classList.add('visible');
           currentArtwork = artworkId;
+          // Hide instruction overlay when artwork is detected
+          hideOverlay();
         }
       }
     }
@@ -477,9 +511,10 @@
           video.onloadedmetadata = resolve;
         });
         
-        // Hide loading
+        // Hide loading and initialize overlay
         loading.style.display = 'none';
-        
+        initOverlay();
+
         // Start detection loop
         detectLoop();
         
