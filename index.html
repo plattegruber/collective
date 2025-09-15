@@ -58,8 +58,8 @@
       pointer-events:none;
     }
 
-    /* Stack: brackets + phrase */
-    .hud{display:grid;gap:clamp(10px,2.6vmin,18px);justify-items:center;filter:drop-shadow(var(--ui-shadow))}
+    /* HUD container - overlay brackets + phrase */
+    .hud{position:relative;display:grid;place-items:center;filter:drop-shadow(var(--ui-shadow))}
 
     /* SVG scales with viewport, maintains line proportions via vector-effect */
     .brackets{inline-size:min(70vmin, 560px);block-size:auto;opacity:.95}
@@ -74,8 +74,9 @@
       @keyframes pulse{0%,100%{opacity:.85}50%{opacity:1}}
     }
 
-    /* Phrase styling */
+    /* Phrase styling - positioned over brackets */
     .phrase{
+      position:absolute;inset:0;display:grid;place-items:center;
       pointer-events:auto; /* allow tap to cycle */
       text-align:center;letter-spacing:.01em;
       font-weight:600;
@@ -206,16 +207,7 @@
 
     // Phrase bank for dynamic overlay
     const phrases = [
-      "point toward the art.",
-      "frame the canvas.",
-      "bring the wall into view.",
-      "show the piece clearly.",
-      "hold the painting in frame.",
-      "focus on the artwork.",
-      "line up with the picture.",
-      "center the canvas here.",
-      "aim at what’s on the wall.",
-      "let the artwork fill the screen."
+      "Point me toward the art."
     ];
 
     function pickNewPhrase(){
