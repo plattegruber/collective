@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'assets/**'
+      - 'public/data/art-content.*.json'
       - 'ml_pipeline/**'
       - '.github/workflows/detector-train-export.yml'
       - 'requirements.txt'
