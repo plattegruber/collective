@@ -3,7 +3,7 @@
 A camera-first web app that recognizes your artwork with an ONNX detector and surfaces rich metadata overlays. The project now separates front-end sources, ML tooling, and generated artifacts so you can tell at a glance what is editable code versus build output.
 
 ## Repository Layout
-- `apps/web/` – Vite-powered static site (development entry at `index.html`, source modules in `src/`, deployable assets in `public/`).
+- `apps/web/` – Vite-powered Svelte app (entry HTML at `index.html`, Svelte components in `src/`, deployable assets in `public/`).
 - `ml/` – Dataset synthesis, training, and model-export scripts with a shared `requirements.txt`.
 - `data/raw/` – Source imagery for dataset generation (`assets/` for foregrounds, `backgrounds/` for augmentation backdrops).
 - `artifacts/` – Generated datasets, checkpoints, and other reproducible outputs.
