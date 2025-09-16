@@ -3,11 +3,11 @@ name: detector-train-export
 on:
   push:
     paths:
-      - 'assets/**'
-      - 'public/data/art-content.*.json'
-      - 'ml_pipeline/**'
+      - 'data/raw/**'
+      - 'apps/web/public/data/art-content.*.json'
+      - 'ml/**'
       - '.github/workflows/detector-train-export.yml'
-      - 'requirements.txt'
+      - 'ml/requirements.txt'
   workflow_dispatch: {}
 
 jobs:
@@ -38,99 +38,97 @@ jobs:
           # Install PyTorch CPU version
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           # Install requirements
-          pip install -r requirements.txt
+          pip install -r ml/requirements.txt
           # Try to install TFJS deps, but don't fail if they're not available
           pip install onnx-tf tensorflow tensorflowjs || echo "TFJS dependencies not available, will use ONNX fallback"
 
       - name: Build dataset
         run: |
-          python ml_pipeline/make_dataset.py \
-            --assets-dir assets \
-            --out out_dataset \
+          python ml/make_dataset.py \
+            --assets-dir data/raw/assets \
+            --backgrounds-dir data/raw/backgrounds \
+            --out artifacts/datasets \
             --img-size 640 \
             --samples-per-piece 160
 
       - name: Train detector
         run: |
-          python ml_pipeline/train.py \
-            --data out_dataset \
-            --out out_models/ssdlite320 \
+          python ml/train.py \
+            --data artifacts/datasets \
+            --out artifacts/models/ssdlite320 \
             --epochs 12 \
             --batch-size 16 \
             --img-size 320
 
       - name: Export for web (prefer TFJS, fallback ONNX)
         run: |
-          python ml_pipeline/export_tfjs.py \
-            --onnx out_models/ssdlite320/best.onnx \
-            --labels out_models/ssdlite320/labels.json \
-            --out models \
-            --public public \
+          python ml/export_tfjs.py \
+            --onnx artifacts/models/ssdlite320/best.onnx \
+            --labels artifacts/models/ssdlite320/labels.json \
+            --out apps/web/public/models \
+            --public apps/web/public \
             --prefer tfjs
 
       - name: Copy model files to public directory
         run: |
-          # Ensure the models are in public/ so Vite will include them in dist/
-          mkdir -p public/models
-          if [ -d "models/detector" ]; then
-            cp -r models/detector public/models/
-            echo "Copied models/detector to public/models/"
+          # Ensure the models are in apps/web/public/ so Vite will include them in dist/
+          mkdir -p apps/web/public/models
+          if [ -d "apps/web/public/models/detector" ]; then
+            echo "Models already exported to apps/web/public/models/detector/"
           fi
           
           # Debug: Check what files we have
           echo "=== Checking generated files ==="
-          echo "Root directory files:"
-          ls -la model-manifest.json 2>/dev/null || echo "No model-manifest.json in root"
+          echo "Contents of apps/web/public/:"
+          ls -la apps/web/public/
           echo ""
-          echo "Public directory files:"
-          ls -la public/model-manifest.json 2>/dev/null || echo "No model-manifest.json in public/"
-          ls -la public/models/
-          echo ""
-          echo "Models directory:"
-          ls -la models/ 2>/dev/null || echo "No models/ directory"
+          echo "Contents of apps/web/public/models/:"
+          ls -la apps/web/public/models/ 2>/dev/null || echo "No exported models"
 
       - name: Verify model files before build
         run: |
           echo "=== Verifying files before build ==="
-          if [ ! -f "public/model-manifest.json" ]; then
-            echo "ERROR: public/model-manifest.json not found!"
+          if [ ! -f "apps/web/public/model-manifest.json" ]; then
+            echo "ERROR: apps/web/public/model-manifest.json not found!"
             exit 1
           fi
-          if [ ! -d "public/models/detector" ]; then
-            echo "ERROR: public/models/detector/ not found!"
+          if [ ! -d "apps/web/public/models/detector" ]; then
+            echo "ERROR: apps/web/public/models/detector/ not found!"
             exit 1
           fi
           echo "✅ All required files present"
-          echo "Contents of public/:"
-          ls -la public/
-          echo "Contents of public/models/:"
-          ls -la public/models/
+          echo "Contents of apps/web/public/:"
+          ls -la apps/web/public/
+          echo "Contents of apps/web/public/models/:"
+          ls -la apps/web/public/models/
 
       - name: Install Node dependencies
+        working-directory: apps/web
         run: npm ci
 
       - name: Build site with model
+        working-directory: apps/web
         run: npm run build
 
       - name: Verify build output
         run: |
           echo "=== Checking dist/ contents ==="
           echo "Root of dist/:"
-          ls -la dist/
+          ls -la apps/web/dist/
           echo ""
           echo "Looking for model files in dist/:"
-          ls -la dist/model-manifest.json 2>/dev/null || echo "No model-manifest.json in dist/"
-          ls -la dist/models/ 2>/dev/null || echo "No models/ in dist/"
-          if [ -d "dist/models/detector" ]; then
+          ls -la apps/web/dist/model-manifest.json 2>/dev/null || echo "No model-manifest.json in dist/"
+          ls -la apps/web/dist/models/ 2>/dev/null || echo "No models/ in dist/"
+          if [ -d "apps/web/dist/models/detector" ]; then
             echo "Contents of dist/models/detector/:"
-            ls -la dist/models/detector/
+            ls -la apps/web/dist/models/detector/
           fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist-with-model
-          path: dist/
+          path: apps/web/dist/
           retention-days: 30
 
       # Deploy to GitHub Pages if on main branch
@@ -142,7 +140,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/
+          path: apps/web/dist/
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'

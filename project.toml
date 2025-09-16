@@ -1,6 +1,6 @@
 [build]
 include = [
-  "dist/**/*"
+  "apps/web/dist/**/*"
 ]
 
 [[build.buildpacks]]

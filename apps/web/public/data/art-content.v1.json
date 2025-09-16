@@ -1,0 +1,51 @@
+{
+  "2d:byrons_painting": {
+    "title": "Untitled",
+    "artist": "Byron Anway",
+    "year": 2022,
+    "materials": "Oil on canvas",
+    "description": "A gift to Andrea from Byron."
+  },
+  "2d:horse_swing": {
+    "title": "Untitled",
+    "artist": "Jewelya Coffey",
+    "year": 2024,
+    "materials": "Gouache and gel pen on paper",
+    "description": "This piece was purchased during Jewelya Coffey’s MFA Thesis exhibition at the University of Nebraska–Lincoln. Created as part of her graduate body of work, it reflects Coffey’s exploration of narrative, folklore, and layered symbolism through richly patterned surfaces and surreal imagery. Her thesis works often investigate themes of play, guardianship, and transformation, expressed through dreamlike compositions that blur the line between the whimsical and the uncanny."
+  },
+  "2d:opals_departure": {
+    "title": "Opal's Departure",
+    "artist": "Amy Cutler",
+    "year": 2011,
+    "materials": "Lithograph, offset printed",
+    "description": "Opal’s Departure is a 9-color lithograph by Amy Cutler, created in an edition of 50. Known for her meticulously detailed and narrative-driven prints and drawings, Cutler often stages fantastical scenes that blur the boundaries between the everyday and the surreal. In this work, the protagonist appears to have hastily overpacked, her suitcases bursting as she balances on a barrel with the aid of her own head. The image suggests both humor and unease—whether a playful warning against impulsiveness, a memory of regret, or simply a reminder of the absurdity we all recognize in ourselves."
+  },
+  "2d:andrea": {
+    "title": "Untitled",
+    "artist": "Andrea Gruber",
+    "year": 2012,
+    "materials": "Oil on canvas",
+    "description": "A series of self portraits painted by Andrea during her undergraduate studies at UNL."
+  },
+  "2d:fransisco_suoto_commissioned": {
+    "title": "Untitled",
+    "artist": "Francisco Souto",
+    "year": 2024,
+    "materials": "Graphite on paper",
+    "description": "This commissioned drawing (2024) by Francisco Souto takes inspiration from his Ecos de la Memoria series, where landscapes become vessels for memory and shared experience. Given free rein, Souto chose to render a site in Italy visited years earlier with Andrea and fellow colleagues, translating recollection into his meticulous hand-drawn language. The work folds together personal history and collective travel, showing how place endures in memory not only for the artist but also for those connected to him."
+  },
+  "2d:church_ceiling": {
+    "title": "Untitled",
+    "artist": "Andrea Gruber",
+    "year": 2011,
+    "materials": "Photograph",
+    "description": ""
+  },
+  "2d:memory_surface": {
+    "title": "Memory Surface",
+    "artist": "Francisco Souto",
+    "year": 2013,
+    "materials": "Mezzotint and digital print",
+    "description": "Memory Surface is a 2013 mezzotint and digital print by Francisco Souto, an artist known for merging painstaking craft with meditations on memory and impermanence. Souto often builds images that hover between the tangible and the elusive, grounding personal recollection in precise mark-making while allowing ambiguity to seep through. In this work, the materiality of mezzotint collides with digital overlays, suggesting that memory itself is layered, unstable, and resistant to capture. This impression carries an added intimacy: it was given by the artist as a wedding gift to Platte and Andrea, his studio assistant, making the piece not only a meditation on memory but also a marker of personal connection and shared history."
+  }
+}

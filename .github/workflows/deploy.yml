@@ -5,10 +5,10 @@ on:
     branches: [ main ]
     paths-ignore:
       # Don't run if only these files changed (detector-train-export handles them)
-      - 'assets/**'
-      - 'ml_pipeline/**'
+      - 'data/raw/**'
+      - 'ml/**'
+      - 'artifacts/**'
       - '.github/workflows/detector-train-export.yml'
-      - 'requirements.txt'
   workflow_dispatch:
 
 permissions:
@@ -32,8 +32,10 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
           
       - name: Install dependencies
+        working-directory: apps/web
         run: npm ci
         
       - name: Check for existing model
@@ -41,6 +43,7 @@ jobs:
         run: |
           # Try to download the current deployed model if it exists
           echo "Checking for existing deployed model..."
+          cd apps/web
           mkdir -p public/models/detector
           
           # Try to fetch the deployed model files
@@ -55,6 +58,7 @@ jobs:
           fi
           
       - name: Build
+        working-directory: apps/web
         run: npm run build
         
       - name: Setup Pages
@@ -63,7 +67,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './apps/web/dist'
 
   deploy:
     environment:

@@ -1,0 +1,251 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Detector Harness</title>
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;font:14px/1.2 system-ui}
+  #wrap{position:relative;width:100vw;height:100vh}
+  video,canvas{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%}
+  #hud{position:fixed;left:12px;top:12px;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:10px}
+</style>
+<div id="wrap">
+  <video id="v" autoplay muted playsinline></video>
+  <canvas id="c"></canvas>
+  <div id="hud">loading…</div>
+</div>
+
+<script type="module">
+const hud = document.getElementById('hud');
+const v = document.getElementById('v'), c = document.getElementById('c'), ctx = c.getContext('2d');
+
+// Adjust path prefix for your dev server base (you used /collective/)
+const BASE = '/collective';
+const manifest = await (await fetch(`${BASE}/model-manifest.json`, { cache:'no-store' })).json();
+hud.textContent = `manifest: ${manifest.format}`;
+
+// Load labels for artwork names
+let LABELS = {};
+try {
+  // Labels path from manifest, or default location (not under /dev/)
+  const labelsPath = manifest.labels ? `${BASE}/${manifest.labels}` : `${BASE}/models/detector/labels.json`;
+  LABELS = await (await fetch(labelsPath)).json();
+  console.log('Loaded labels:', LABELS);
+} catch (e) {
+  console.warn('Could not load labels, will use class numbers');
+}
+
+let PAD = { left: 0, top: 0, scale: 1 }; // shared between runner and projector
+let runner;
+
+if (manifest.format === 'tfjs') {
+  const tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+  const model = await tf.loadGraphModel(`${BASE}/${manifest.path}`);
+  hud.textContent += ` • tfjs`;
+
+  runner = async () => {
+    const sz = 320, w = v.videoWidth, h = v.videoHeight;
+    const scale = Math.min(sz/h, sz/w), nw = (w*scale)|0, nh = (h*scale)|0;
+    const top = ((sz - nh) / 2) | 0;
+    const left = ((sz - nw) / 2) | 0;
+    PAD = { left, top, scale };
+
+    const x = tf.tidy(() => {
+      const r = tf.image.resizeBilinear(tf.browser.fromPixels(v), [nh, nw]);
+      const pad = tf.pad(r, [[top, sz - nh - top], [left, sz - nw - left], [0, 0]]);
+      return pad.toFloat().div(255).transpose([2,0,1]).expandDims(0); // NCHW
+    });
+
+    const outs = await model.executeAsync(x);
+    const tensors = Array.isArray(outs) ? outs : [outs];
+    // Debug shapes
+    tensors.forEach((t,i)=>console.log('tfjs out', i, t.shape));
+    const boxes = decodeOutputsTFJS(tensors, w, h);
+    tf.dispose([x, ...tensors]);
+    return boxes;
+  };
+
+} else {
+  // ONNX Runtime Web via script tag (works well with Vite)
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/ort.min.js';
+    s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+  });
+  if (!window.ort) throw new Error('ONNX Runtime failed to load');
+
+  const sess = await window.ort.InferenceSession.create(
+    `${BASE}/${manifest.path}`,
+    { executionProviders: ['wasm','webgl'] }
+  );
+  hud.textContent += ` • onnx`;
+
+  runner = async () => {
+    const sz = 320, w = v.videoWidth, h = v.videoHeight;
+    const scale = Math.min(sz/h, sz/w), nw = (w*scale)|0, nh = (h*scale)|0;
+    const top = ((sz - nh) / 2) | 0;
+    const left = ((sz - nw) / 2) | 0;
+    PAD = { left, top, scale };
+
+    const off = new OffscreenCanvas(sz, sz), octx = off.getContext('2d');
+    octx.fillStyle = 'black'; octx.fillRect(0,0,sz,sz);
+    // draw centered to match training letterbox
+    octx.drawImage(v, 0, 0, w, h, left, top, nw, nh);
+    const img = octx.getImageData(0, 0, sz, sz);
+
+    // RGBA -> NCHW float32 (correct packing for [1,3,sz,sz])
+    const chw = new Float32Array(3 * sz * sz);
+    for (let y = 0; y < sz; y++) {
+      for (let x = 0; x < sz; x++) {
+        const i = y * sz + x;         // pixel index
+        const j = i * 4;              // RGBA index
+        chw[0 * sz * sz + i] = img.data[j]     / 255; // R plane
+        chw[1 * sz * sz + i] = img.data[j + 1] / 255; // G plane
+        chw[2 * sz * sz + i] = img.data[j + 2] / 255; // B plane
+      }
+    }
+    const input = new window.ort.Tensor('float32', chw, [1, 3, sz, sz]);
+    const out = await sess.run({ images: input });
+
+    // Only log meta once on first run for debugging
+    if (!window._loggedOnnxMeta) {
+      const meta = Object.fromEntries(Object.entries(out).map(([n,t]) =>
+        [n, { dims: t.dims, type: t.type, len: t.data.length }]
+      ));
+      console.log('ONNX outputs structure:', meta);
+      window._loggedOnnxMeta = true;
+    }
+
+    return decodeOutputsONNX(out, w, h);
+  };
+}
+
+// ----------------- Decoders & helpers -----------------
+
+function decodeOutputsTFJS(tensors, vw, vh) {
+  // Common case: [1,N,4], [1,N], [1,N]
+  if (tensors.length >= 3 && tensors[0].shape.length === 3 && tensors[0].shape[2] === 4) {
+    const bx = tensors[0].arraySync()[0];   // [N,4]
+    const sc = tensors[1].arraySync()[0];   // [N]
+    const lb = tensors[2].arraySync()[0];   // [N]
+    return nms(projectBoxes(bx, sc, lb, vw, vh, PAD));
+  }
+  // If you exported raw heads, we’d need an SSD prior decode here.
+  console.warn('TFJS: unknown output layout; got shapes:', tensors.map(t=>t.shape));
+  return [];
+}
+
+function decodeOutputsONNX(out, vw, vh) {
+  const names = Object.keys(out);
+
+  // Friendly names path
+  if (names.includes('boxes') && names.includes('scores') && names.includes('labels')) {
+    const bxT = out['boxes'], scT = out['scores'], lbT = out['labels'];
+    const N = bxT.dims[1] ?? bxT.dims[0];
+    const bx = Array.from({length: N}, (_,i)=> {
+      const o = i*4; return [bxT.data[o], bxT.data[o+1], bxT.data[o+2], bxT.data[o+3]];
+    });
+    return nms(projectBoxes(bx, scT.data, lbT.data, vw, vh, PAD));
+  }
+
+  // Guess by shape: one [1,N,4], two [1,N]
+  const cand = names.map(n=>[n, out[n].dims]);
+  const bxName = cand.find(([_,d]) => d.length===3 && d[2]===4)?.[0];
+  const rest = cand.filter(([n])=>n!==bxName && out[n].dims.length===2 && out[n].dims[0]===1).map(([n])=>n);
+  if (bxName && rest.length >= 2) {
+    const [scName, lbName] = rest;
+    const bxT = out[bxName], scT = out[scName], lbT = out[lbName];
+    const N = bxT.dims[1];
+    const bx = Array.from({length: N}, (_,i)=> {
+      const o=i*4; return [bxT.data[o], bxT.data[o+1], bxT.data[o+2], bxT.data[o+3]];
+    });
+    return nms(projectBoxes(bx, scT.data, lbT.data, vw, vh, PAD));
+  }
+
+  console.warn('ONNX: unknown output layout; names/dims=', names.map(n=>[n, out[n].dims]));
+  return [];
+}
+
+function projectBoxes(bx, scores, labels, vw, vh, pad) {
+  const { left, top, scale } = pad;
+  const out = [];
+  const thr = 0.70;  // 70% confidence threshold (only show confident detections)
+  for (let i = 0; i < bx.length; i++) {
+    const s = (scores[i] ?? scores.at?.(i) ?? 0);
+    const cls = (labels[i] ?? 0);
+    if (s < thr || cls === 0) continue; // 0 = background
+    let [x1, y1, x2, y2] = bx[i];
+    // reverse letterbox
+    x1 = (x1 - left) / scale; y1 = (y1 - top) / scale;
+    x2 = (x2 - left) / scale; y2 = (y2 - top) / scale;
+    // clamp
+    x1=Math.max(0,Math.min(vw,x1)); y1=Math.max(0,Math.min(vh,y1));
+    x2=Math.max(0,Math.min(vw,x2)); y2=Math.max(0,Math.min(vh,y2));
+    if (x2 > x1 && y2 > y1) out.push({ x1,y1,x2,y2, score:s, cls });
+  }
+  return out;
+}
+
+// Light NMS to clean dupes; SSD often already does NMS, but safe to keep.
+function nms(boxes, iouThr=0.45, maxDet=50){
+  boxes.sort((a,b)=>b.score-a.score);
+  const keep=[]; const area=b=>Math.max(0,b.x2-b.x1)*Math.max(0,b.y2-b.y1);
+  const iou=(a,b)=>{
+    const xx1=Math.max(a.x1,b.x1), yy1=Math.max(a.y1,b.y1);
+    const xx2=Math.min(a.x2,b.x2), yy2=Math.min(a.y2,b.y2);
+    const inter=Math.max(0,xx2-xx1)*Math.max(0,yy2-yy1);
+    return inter/(area(a)+area(b)-inter+1e-9);
+  };
+  for (const b of boxes){
+    if (keep.some(k=>k.cls===b.cls && iou(k,b)>iouThr)) continue;
+    keep.push(b); if (keep.length>=maxDet) break;
+  }
+  return keep;
+}
+
+// --------------- Draw loop ---------------
+
+navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } })
+  .then(stream => { v.srcObject = stream; });
+
+let last = performance.now(), fps = 0;
+let lastDetectionCount = -1;
+async function loop(){
+  if (v.readyState >= 2) {
+    const boxes = await runner();
+    draw(boxes);
+    const now = performance.now(); fps = 1000/(now-last); last = now;
+    
+    // Only log when detection state changes
+    if (boxes.length !== lastDetectionCount) {
+      if (boxes.length > 0) {
+        const detectedArt = boxes.map(b => {
+          const label = LABELS[b.cls] || `class_${b.cls}`;
+          return `${label} (${(b.score*100).toFixed(0)}%)`;
+        }).join(', ');
+        console.log(`🎨 Detected: ${detectedArt}`);
+      } else if (lastDetectionCount > 0) {
+        console.log('👁️ No artwork in view');
+      }
+      lastDetectionCount = boxes.length;
+    }
+    
+    hud.textContent = `${manifest.format} • ${fps.toFixed(1)} fps • ${boxes.length > 0 ? boxes.map(b => LABELS[b.cls] || `class_${b.cls}`).join(', ') : 'scanning...'}`;
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+
+function draw(boxes){
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.setLineDash([8,6]); ctx.lineWidth=3; ctx.strokeStyle='#00e0ff'; ctx.fillStyle='rgba(0,0,0,.6)';
+  for (const b of boxes){
+    const x=b.x1, y=b.y1, w=b.x2-b.x1, h=b.y2-b.y1;
+    ctx.strokeRect(x,y,w,h);
+    const label = LABELS[b.cls] || `class_${b.cls}`;
+    const txt=`${label} ${(b.score*100|0)}%`;
+    const m=ctx.measureText(txt); ctx.fillRect(x,y-22,m.width+8,18);
+    ctx.fillStyle='#fff'; ctx.fillText(txt,x+4,y-8);
+    ctx.fillStyle='rgba(0,0,0,.6)';
+  }
+}
+</script>

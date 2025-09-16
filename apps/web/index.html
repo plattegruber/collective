@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AR Gallery</title>
+</head>
+<body>
+  <div class="app" id="app">
+    <div id="loading">Loading detector model...</div>
+
+    <div id="video-container">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="overlay is-visible" id="overlay" aria-hidden="true">
+      <div class="hud">
+        <svg class="brackets pulse" viewBox="0 0 100 64" role="img" aria-label="framing guides">
+          <path d="M8 18 L8 8 L28 8" />
+          <path d="M92 18 L92 8 L72 8" />
+          <path d="M8 46 L8 56 L28 56" />
+          <path d="M92 46 L92 56 L72 56" />
+        </svg>
+        <div class="phrase shimmer" id="phrase" tabindex="0" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div id="artwork-info" class="artwork-overlay">
+      <h2 id="artwork-title"></h2>
+      <p id="artwork-artist"></p>
+      <p id="artwork-materials"></p>
+      <p id="artwork-description"></p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
