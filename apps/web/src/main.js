@@ -3,6 +3,12 @@ import './style.css';
 // Configuration
 const BASE_URL = import.meta.env.BASE_URL ?? '/';
 const CONFIDENCE_THRESHOLD = 0.7;
+const DISPLAY_CONFIDENCE = 0.78;
+const HIDE_CONFIDENCE = 0.6;
+const SMOOTHING_FACTOR = 0.55;
+const DECAY_FACTOR = 0.6;
+const SWITCH_MARGIN = 0.1;
+const MIN_BUFFER_CONFIDENCE = 0.05;
 
 // Mutable state
 let artContent = {};
@@ -10,6 +16,7 @@ let labels = {};
 let currentArtwork = null;
 let session = null;
 let isOnnxLoaded = false;
+const detectionBuffer = new Map();
 
 // DOM references
 const video = document.getElementById('video');
@@ -242,34 +249,90 @@ function findArtworkByLabel(label) {
   return artContent[label] ? label : null;
 }
 
+function updateDetectionBuffer(detections) {
+  const seenThisFrame = new Set();
+
+  detections.forEach((box) => {
+    const labelText = labels[box.label];
+    if (!labelText) return;
+
+    const currentValue = detectionBuffer.get(labelText) ?? 0;
+    const smoothed = currentValue * (1 - SMOOTHING_FACTOR) + SMOOTHING_FACTOR * box.score;
+    detectionBuffer.set(labelText, smoothed);
+    seenThisFrame.add(labelText);
+  });
+
+  detectionBuffer.forEach((confidence, label) => {
+    if (seenThisFrame.has(label)) return;
+    const decayed = confidence * DECAY_FACTOR;
+    if (decayed <= MIN_BUFFER_CONFIDENCE) {
+      detectionBuffer.delete(label);
+    } else {
+      detectionBuffer.set(label, decayed);
+    }
+  });
+}
+
+function displayArtwork(artworkId) {
+  const artwork = artContent[artworkId];
+  if (!artwork) return;
+
+  document.getElementById('artwork-title').textContent = artwork.title;
+  document.getElementById('artwork-artist').textContent = `${artwork.artist}, ${artwork.year}`;
+  document.getElementById('artwork-materials').textContent = artwork.materials;
+  document.getElementById('artwork-description').textContent = artwork.description;
+
+  artworkOverlay.classList.add('visible');
+  currentArtwork = artworkId;
+  hideOverlay();
+}
+
+function clearArtwork() {
+  if (!currentArtwork) return;
+  artworkOverlay.classList.remove('visible');
+  currentArtwork = null;
+  showOverlay();
+  pickNewPhrase();
+}
+
 function updateArtworkOverlay(detections) {
-  if (detections.length === 0) {
-    if (currentArtwork) {
-      artworkOverlay.classList.remove('visible');
-      currentArtwork = null;
-      showOverlay();
-      pickNewPhrase();
+  updateDetectionBuffer(detections);
+
+  let bestLabel = null;
+  let bestConfidence = 0;
+  detectionBuffer.forEach((confidence, label) => {
+    if (confidence > bestConfidence) {
+      bestConfidence = confidence;
+      bestLabel = label;
+    }
+  });
+
+  const currentConfidence = currentArtwork ? detectionBuffer.get(currentArtwork) ?? 0 : 0;
+
+  if (currentArtwork && currentConfidence < HIDE_CONFIDENCE) {
+    clearArtwork();
+  }
+
+  if (!bestLabel) {
+    return;
+  }
+
+  const candidateId = findArtworkByLabel(bestLabel);
+  if (!candidateId) return;
+
+  if (!currentArtwork) {
+    if (bestConfidence >= DISPLAY_CONFIDENCE) {
+      displayArtwork(candidateId);
     }
     return;
   }
 
-  const bestBox = detections.reduce((best, box) => (box.score > best.score ? box : best));
-  const labelText = labels[bestBox.label];
-  if (!labelText) return;
+  if (candidateId === currentArtwork) {
+    return;
+  }
 
-  const artworkId = findArtworkByLabel(labelText);
-  if (artworkId && artworkId !== currentArtwork) {
-    const artwork = artContent[artworkId];
-    if (!artwork) return;
-
-    document.getElementById('artwork-title').textContent = artwork.title;
-    document.getElementById('artwork-artist').textContent = `${artwork.artist}, ${artwork.year}`;
-    document.getElementById('artwork-materials').textContent = artwork.materials;
-    document.getElementById('artwork-description').textContent = artwork.description;
-
-    artworkOverlay.classList.add('visible');
-    currentArtwork = artworkId;
-    hideOverlay();
+  if (bestConfidence >= DISPLAY_CONFIDENCE && bestConfidence >= (currentConfidence + SWITCH_MARGIN)) {
+    displayArtwork(candidateId);
   }
 }
 
