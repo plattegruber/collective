@@ -16,18 +16,18 @@
 
   const phrases = ['Point me toward the art.'];
 
-  let artContent = {};
-  let labels = {};
-  let currentArtwork = null;
+  let artContent = $state({});
+  let labels = $state({});
+  let currentArtwork = $state(null);
   let session = null;
   let isOnnxLoaded = false;
   const detectionBuffer = new Map();
-  let permissionState = 'unknown';
-  let permissionMessage = '';
-  let showPermissionPrompt = false;
-  let isRequestingCamera = false;
+  let permissionState = $state('unknown');
+  let permissionMessage = $state('');
+  let showPermissionPrompt = $state(false);
+  let isRequestingCamera = $state(false);
   let detectionStarted = false;
-  let lastCameraError = '';
+  let lastCameraError = $state('');
   let permissionStatusHandle;
 
   let videoEl;
@@ -37,21 +37,23 @@
   let animationFrameId;
   let phraseTimeout;
 
-  let overlayVisible = true;
-  let shouldShimmer = false;
-  let phraseOpacity = 1;
-  let phraseText = '';
+  let overlayVisible = $state(true);
+  let shouldShimmer = $state(false);
+  let phraseOpacity = $state(1);
+  let phraseText = $state('');
 
-  let showLoading = true;
-  let loadingMessage = 'Loading detector model...';
+  let showLoading = $state(true);
+  let loadingMessage = $state('Loading detector model...');
 
-  let artworkVisible = false;
-  let displayedArtwork = {
+  let artworkVisible = $state(false);
+  let displayedArtwork = $state({
     title: '',
     byline: '',
     materials: '',
     description: '',
-  };
+  });
+
+  const canRequestPermission = $derived(['prompt', 'denied', 'error'].includes(permissionState));
 
   const getFrameCanvas = (() => {
     let canvasRef = null;
@@ -286,8 +288,6 @@
       displayArtwork(candidateId);
     }
   }
-
-  $: canRequestPermission = ['prompt', 'denied', 'error'].includes(permissionState);
 
   function updatePermissionMessage(state) {
     switch (state) {

@@ -107,6 +107,11 @@
   }
 
   .phrase {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
     position: absolute;
     inset: 0;
     display: flex;
