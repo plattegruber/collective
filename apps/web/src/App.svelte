@@ -18,6 +18,13 @@
   let session = null;
   let isOnnxLoaded = false;
   const detectionBuffer = new Map();
+  let permissionState = 'unknown';
+  let permissionMessage = '';
+  let showPermissionPrompt = false;
+  let isRequestingCamera = false;
+  let detectionStarted = false;
+  let lastCameraError = '';
+  let permissionStatusHandle;
 
   let videoEl;
   let canvasEl;
@@ -250,9 +257,156 @@
       return;
     }
 
-    if (bestConfidence >= DISPLAY_CONFIDENCE && bestConfidence >= currentConfidence + SWITCH_MARGIN) {
-      displayArtwork(candidateId);
+  if (bestConfidence >= DISPLAY_CONFIDENCE && bestConfidence >= currentConfidence + SWITCH_MARGIN) {
+    displayArtwork(candidateId);
+  }
+}
+
+  function updatePermissionMessage(state) {
+    switch (state) {
+      case 'granted':
+        permissionMessage = '';
+        break;
+      case 'denied':
+        permissionMessage = 'Camera access is blocked. Allow camera access in your browser settings and try again.';
+        break;
+      case 'prompt':
+      case 'unknown':
+        permissionMessage = 'We use your camera to detect artworks in real time. Grant access to start the experience.';
+        break;
+      case 'unsupported':
+        permissionMessage = 'This browser does not support camera access required for the AR experience.';
+        break;
+      case 'error':
+        permissionMessage = 'We could not access the camera. Check your device camera or try again.';
+        break;
+      default:
+        permissionMessage = 'Camera access is required to continue.';
     }
+  }
+
+  async function checkCameraPermission() {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      permissionState = 'unsupported';
+      updatePermissionMessage('unsupported');
+      showPermissionPrompt = true;
+      return;
+    }
+
+    if (navigator.permissions?.query) {
+      try {
+        permissionStatusHandle = await navigator.permissions.query({ name: 'camera' });
+        permissionState = permissionStatusHandle.state;
+        updatePermissionMessage(permissionState);
+        if (permissionState === 'granted') {
+          await requestCameraAccess(true);
+        } else {
+          showPermissionPrompt = true;
+        }
+        permissionStatusHandle.onchange = async () => {
+          permissionState = permissionStatusHandle.state;
+          updatePermissionMessage(permissionState);
+          if (permissionStatusHandle.state === 'granted') {
+            showPermissionPrompt = false;
+            await requestCameraAccess(true);
+          } else {
+            showPermissionPrompt = true;
+          }
+        };
+        return;
+      } catch (error) {
+        console.warn('Unable to query camera permissions', error);
+      }
+    }
+
+    permissionState = 'prompt';
+    updatePermissionMessage('prompt');
+    showPermissionPrompt = true;
+  }
+
+  async function requestCameraAccess(auto = false) {
+    if (isRequestingCamera && !auto) return;
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      permissionState = 'unsupported';
+      updatePermissionMessage('unsupported');
+      showPermissionPrompt = true;
+      return;
+    }
+
+    try {
+      if (!auto) {
+        isRequestingCamera = true;
+      }
+      showLoading = true;
+      loadingMessage = 'Starting camera...';
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      permissionState = 'granted';
+      updatePermissionMessage('granted');
+      await handleCameraStream(mediaStream);
+    } catch (error) {
+      handleCameraError(error);
+    } finally {
+      if (!auto) {
+        isRequestingCamera = false;
+      }
+      if (permissionState !== 'granted') {
+        showLoading = false;
+      }
+    }
+  }
+
+  async function handleCameraStream(mediaStream) {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    stream = mediaStream;
+    videoEl.srcObject = stream;
+
+    await new Promise((resolve) => {
+      const finalize = () => resolve();
+      videoEl.onloadedmetadata = () => {
+        const playPromise = videoEl.play();
+        if (playPromise?.catch) {
+          playPromise.catch((error) => {
+            console.warn('Video playback error', error);
+          }).finally(finalize);
+        } else {
+          finalize();
+        }
+      };
+    });
+
+    showPermissionPrompt = false;
+    showLoading = false;
+    lastCameraError = '';
+
+    if (!detectionStarted) {
+      detectionStarted = true;
+      detectLoop();
+    }
+  }
+
+  function handleCameraError(error) {
+    console.error('Camera access error:', error);
+    const name = error?.name;
+    lastCameraError = error?.message ?? '';
+
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      permissionState = 'denied';
+    } else if (name === 'NotFoundError') {
+      permissionState = 'error';
+      lastCameraError = 'No camera device was found.';
+    } else if (name === 'NotReadableError') {
+      permissionState = 'error';
+      lastCameraError = 'The camera is already in use by another application.';
+    } else {
+      permissionState = 'error';
+    }
+
+    updatePermissionMessage(permissionState);
+    showPermissionPrompt = true;
   }
 
   async function processFrame() {
@@ -346,22 +500,13 @@
   async function init() {
     try {
       await Promise.all([loadArtworkContent(), loadModel()]);
-
-      loadingMessage = 'Starting camera...';
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      videoEl.srcObject = stream;
-
-      await new Promise((resolve) => {
-        videoEl.onloadedmetadata = () => {
-          videoEl.play().catch(() => {});
-          resolve();
-        };
-      });
-
       showLoading = false;
-      detectLoop();
+      await checkCameraPermission();
+      if (permissionState === 'granted') {
+        await requestCameraAccess(true);
+      } else {
+        showPermissionPrompt = true;
+      }
     } catch (error) {
       console.error('Initialization failed:', error);
       loadingMessage = 'Failed to initialize. Please check camera permissions and refresh.';
@@ -383,6 +528,9 @@
       cancelAnimationFrame(animationFrameId);
     }
     detectionBuffer.clear();
+    if (permissionStatusHandle) {
+      permissionStatusHandle.onchange = null;
+    }
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
@@ -406,6 +554,27 @@
 
   {#if showLoading}
     <div id="loading" class="loading">{loadingMessage}</div>
+  {/if}
+
+  {#if showPermissionPrompt}
+    <div class="permission-banner">
+      <div class="permission-inner">
+        <h2>Enable your camera</h2>
+        <p>{permissionMessage}</p>
+        {#if lastCameraError}
+          <p class="permission-error">{lastCameraError}</p>
+        {/if}
+        {#if permissionState === 'prompt' || permissionState === 'denied' || permissionState === 'error'}
+          <button
+            class="permission-button"
+            on:click={() => requestCameraAccess(false)}
+            disabled={isRequestingCamera}
+          >
+            {isRequestingCamera ? 'Requesting camera…' : 'Allow camera access'}
+          </button>
+        {/if}
+      </div>
+    </div>
   {/if}
 
   <div
@@ -503,6 +672,76 @@
     font-family: system-ui, sans-serif;
     z-index: 50;
     background: rgba(0, 0, 0, 0.6);
+  }
+
+  .permission-banner {
+    position: fixed;
+    top: clamp(24px, 10vh, 96px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 420px);
+    z-index: 60;
+    pointer-events: none;
+  }
+
+  .permission-inner {
+    pointer-events: auto;
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+    background: rgba(14, 18, 28, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 18px;
+    padding: clamp(18px, 4vw, 28px);
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+    color: rgba(240, 244, 255, 0.92);
+    text-align: center;
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .permission-inner {
+      background: rgba(11, 14, 22, 0.82);
+    }
+  }
+
+  .permission-inner h2 {
+    margin: 0 0 10px;
+    font-size: clamp(1.4rem, 3.8vw, 1.8rem);
+    letter-spacing: 0.01em;
+  }
+
+  .permission-inner p {
+    margin: 6px 0;
+    line-height: 1.5;
+  }
+
+  .permission-error {
+    color: rgba(255, 99, 132, 0.85);
+    font-size: 0.95rem;
+  }
+
+  .permission-button {
+    margin-top: 16px;
+    padding: 12px 20px;
+    border-radius: 999px;
+    border: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: rgba(13, 17, 26, 0.95);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(205, 218, 255, 0.85) 100%);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .permission-button:disabled {
+    opacity: 0.6;
+    cursor: progress;
+    box-shadow: none;
+  }
+
+  .permission-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
   }
 
   .overlay {
