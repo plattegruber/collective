@@ -98,21 +98,49 @@
   }
 
   async function loadArtworkContent() {
-    const response = await fetch(`${BASE_URL}data/art-content.v1.json`);
-    artContent = await response.json();
+    const response = await fetch(`${BASE_URL}data/art-content.v1.json`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Failed to load artwork content (${response.status})`);
+    }
+    try {
+      artContent = await response.json();
+    } catch (error) {
+      throw new Error('Artwork content response is not valid JSON.');
+    }
     console.log('Loaded artwork content:', Object.keys(artContent).length, 'pieces');
   }
 
   async function loadModel() {
-    const manifestResponse = await fetch(`${BASE_URL}model-manifest.json`);
-    const manifest = await manifestResponse.json();
+    const manifestResponse = await fetch(`${BASE_URL}model-manifest.json`, { cache: 'no-store' });
+    if (!manifestResponse.ok) {
+      throw new Error(`Failed to load model manifest (${manifestResponse.status})`);
+    }
+
+    let manifest;
+    try {
+      manifest = await manifestResponse.json();
+    } catch (error) {
+      throw new Error('Model manifest is not valid JSON.');
+    }
+
+    if (!manifest || typeof manifest !== 'object') {
+      throw new Error('Model manifest is empty or invalid.');
+    }
+
     console.log('Model manifest:', manifest);
 
     const labelsPath = manifest.labels
       ? `${BASE_URL}${manifest.labels}`
       : `${BASE_URL}models/detector/labels.json`;
-    const labelsResponse = await fetch(labelsPath);
-    labels = await labelsResponse.json();
+    const labelsResponse = await fetch(labelsPath, { cache: 'no-store' });
+    if (!labelsResponse.ok) {
+      throw new Error(`Failed to load detector labels (${labelsResponse.status})`);
+    }
+    try {
+      labels = await labelsResponse.json();
+    } catch (error) {
+      throw new Error('Detector labels file is not valid JSON.');
+    }
     console.log('Loaded labels:', labels);
 
     if (!isOnnxLoaded) {
@@ -498,19 +526,51 @@
   }
 
   async function init() {
+    let artworkLoaded = false;
+    let modelLoaded = false;
+
     try {
-      await Promise.all([loadArtworkContent(), loadModel()]);
+      const [artworkResult, modelResult] = await Promise.allSettled([
+        loadArtworkContent(),
+        loadModel(),
+      ]);
+
+      if (artworkResult.status === 'rejected') {
+        console.error('Artwork content failed to load:', artworkResult.reason);
+      } else {
+        artworkLoaded = true;
+      }
+
+      if (modelResult.status === 'rejected') {
+        console.error('Model failed to load:', modelResult.reason);
+        loadingMessage = 'Detector model failed to load. Check your deployment assets and refresh.';
+      } else {
+        modelLoaded = true;
+      }
+
       showLoading = false;
+
       await checkCameraPermission();
       if (permissionState === 'granted') {
         await requestCameraAccess(true);
       } else {
         showPermissionPrompt = true;
       }
+
+      if (!artworkLoaded || !modelLoaded) {
+        console.warn('Application initialized with missing resources.', {
+          artworkLoaded,
+          modelLoaded,
+        });
+      }
     } catch (error) {
-      console.error('Initialization failed:', error);
-      loadingMessage = 'Failed to initialize. Please check camera permissions and refresh.';
-      showLoading = true;
+      console.error('Initialization failed unexpectedly:', error);
+      loadingMessage = 'Something went wrong during startup. Refresh the page and try again.';
+      showLoading = false;
+      await checkCameraPermission();
+      if (permissionState !== 'granted') {
+        showPermissionPrompt = true;
+      }
     }
   }
 
