@@ -36,8 +36,9 @@
       <path d="M8 46 L8 56 L28 56" />
       <path d="M92 46 L92 56 L72 56" />
     </svg>
-    <button
-      type="button"
+    <div
+      role="button"
+      tabindex="0"
       class={`phrase ${shimmer ? 'shimmer' : ''}`}
       aria-live="polite"
       style={`opacity: ${phraseOpacity};`}
@@ -45,7 +46,7 @@
       on:keydown={handlePhraseKey}
     >
       {phrase}
-    </button>
+    </div>
   </div>
 </div>
 
@@ -107,11 +108,6 @@
   }
 
   .phrase {
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
     position: absolute;
     inset: 0;
     display: flex;
