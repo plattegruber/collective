@@ -1,5 +1,9 @@
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
+  import LoadingOverlay from './components/LoadingOverlay.svelte';
+  import PermissionBanner from './components/PermissionBanner.svelte';
+  import InstructionOverlay from './components/InstructionOverlay.svelte';
+  import ArtworkOverlay from './components/ArtworkOverlay.svelte';
 
   const BASE_URL = import.meta.env.BASE_URL ?? '/';
   const CONFIDENCE_THRESHOLD = 0.7;
@@ -80,13 +84,6 @@
       phraseOpacity = 1;
       shouldShimmer = true;
     }, 140);
-  }
-
-  function handlePhraseKey(event) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      pickNewPhrase();
-    }
   }
 
   function hideOverlay() {
@@ -285,10 +282,12 @@
       return;
     }
 
-  if (bestConfidence >= DISPLAY_CONFIDENCE && bestConfidence >= currentConfidence + SWITCH_MARGIN) {
-    displayArtwork(candidateId);
+    if (bestConfidence >= DISPLAY_CONFIDENCE && bestConfidence >= currentConfidence + SWITCH_MARGIN) {
+      displayArtwork(candidateId);
+    }
   }
-}
+
+  $: canRequestPermission = ['prompt', 'denied', 'error'].includes(permissionState);
 
   function updatePermissionMessage(state) {
     switch (state) {
@@ -612,62 +611,27 @@
     <canvas bind:this={canvasEl}></canvas>
   </div>
 
-  {#if showLoading}
-    <div id="loading" class="loading">{loadingMessage}</div>
-  {/if}
+  <LoadingOverlay visible={showLoading} message={loadingMessage} />
 
-  {#if showPermissionPrompt}
-    <div class="permission-banner">
-      <div class="permission-inner">
-        <h2>Enable your camera</h2>
-        <p>{permissionMessage}</p>
-        {#if lastCameraError}
-          <p class="permission-error">{lastCameraError}</p>
-        {/if}
-        {#if permissionState === 'prompt' || permissionState === 'denied' || permissionState === 'error'}
-          <button
-            class="permission-button"
-            on:click={() => requestCameraAccess(false)}
-            disabled={isRequestingCamera}
-          >
-            {isRequestingCamera ? 'Requesting camera…' : 'Allow camera access'}
-          </button>
-        {/if}
-      </div>
-    </div>
-  {/if}
+  <PermissionBanner
+    visible={showPermissionPrompt}
+    message={permissionMessage}
+    error={lastCameraError}
+    canRequest={canRequestPermission}
+    isRequesting={isRequestingCamera}
+    on:request={() => requestCameraAccess(false)}
+  />
 
-  <div
-    class={`overlay ${overlayVisible ? 'is-visible' : 'is-hidden'}`}
-    aria-hidden={!overlayVisible}
-    on:click={hideOverlay}
-  >
-    <div class="hud">
-      <svg class="brackets pulse" viewBox="0 0 100 64" role="img" aria-label="framing guides">
-        <path d="M8 18 L8 8 L28 8" />
-        <path d="M92 18 L92 8 L72 8" />
-        <path d="M8 46 L8 56 L28 56" />
-        <path d="M92 46 L92 56 L72 56" />
-      </svg>
-      <div
-        class={`phrase ${shouldShimmer ? 'shimmer' : ''}`}
-        tabindex="0"
-        aria-live="polite"
-        style={`opacity: ${phraseOpacity};`}
-        on:click={pickNewPhrase}
-        on:keydown={handlePhraseKey}
-      >
-        {phraseText}
-      </div>
-    </div>
-  </div>
+  <InstructionOverlay
+    visible={overlayVisible}
+    phrase={phraseText}
+    shimmer={shouldShimmer}
+    phraseOpacity={phraseOpacity}
+    on:hide={hideOverlay}
+    on:next={pickNewPhrase}
+  />
 
-  <div class={`artwork-overlay ${artworkVisible ? 'visible' : ''}`}>
-    <h2>{displayedArtwork.title}</h2>
-    <p>{displayedArtwork.byline}</p>
-    <p>{displayedArtwork.materials}</p>
-    <p>{displayedArtwork.description}</p>
-  </div>
+  <ArtworkOverlay visible={artworkVisible} artwork={displayedArtwork} />
 </div>
 
 <style>
@@ -721,273 +685,5 @@
     height: 100%;
     z-index: 1;
     pointer-events: none;
-  }
-
-  .loading {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    color: #fff;
-    font-family: system-ui, sans-serif;
-    z-index: 50;
-    background: rgba(0, 0, 0, 0.6);
-  }
-
-  .permission-banner {
-    position: fixed;
-    top: clamp(24px, 10vh, 96px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(92vw, 420px);
-    z-index: 60;
-    pointer-events: none;
-  }
-
-  .permission-inner {
-    pointer-events: auto;
-    backdrop-filter: blur(16px) saturate(130%);
-    -webkit-backdrop-filter: blur(16px) saturate(130%);
-    background: rgba(14, 18, 28, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 18px;
-    padding: clamp(18px, 4vw, 28px);
-    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
-    color: rgba(240, 244, 255, 0.92);
-    text-align: center;
-  }
-
-  @supports not (backdrop-filter: blur(1px)) {
-    .permission-inner {
-      background: rgba(11, 14, 22, 0.82);
-    }
-  }
-
-  .permission-inner h2 {
-    margin: 0 0 10px;
-    font-size: clamp(1.4rem, 3.8vw, 1.8rem);
-    letter-spacing: 0.01em;
-  }
-
-  .permission-inner p {
-    margin: 6px 0;
-    line-height: 1.5;
-  }
-
-  .permission-error {
-    color: rgba(255, 99, 132, 0.85);
-    font-size: 0.95rem;
-  }
-
-  .permission-button {
-    margin-top: 16px;
-    padding: 12px 20px;
-    border-radius: 999px;
-    border: none;
-    font-size: 1rem;
-    font-weight: 600;
-    color: rgba(13, 17, 26, 0.95);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(205, 218, 255, 0.85) 100%);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .permission-button:disabled {
-    opacity: 0.6;
-    cursor: progress;
-    box-shadow: none;
-  }
-
-  .permission-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
-  }
-
-  .overlay {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: clamp(12px, 4vmin, 28px);
-    pointer-events: none;
-  }
-
-  .overlay::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(60% 60% at 50% 45%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.35) 100%);
-    pointer-events: none;
-  }
-
-  .hud {
-    position: relative;
-    display: grid;
-    place-items: center;
-    filter: drop-shadow(var(--ui-shadow));
-  }
-
-  .brackets {
-    inline-size: min(70vmin, 560px);
-    block-size: auto;
-    opacity: 0.95;
-  }
-
-  .brackets line,
-  .brackets path {
-    stroke: var(--ui-fg);
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: var(--bracket-thickness);
-    vector-effect: non-scaling-stroke;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .pulse {
-      animation: pulse 2.4s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%,
-      100% {
-        opacity: 0.85;
-      }
-
-      50% {
-        opacity: 1;
-      }
-    }
-  }
-
-  .phrase {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    text-align: center;
-    letter-spacing: 0.01em;
-    font-weight: 600;
-    font-size: clamp(18px, 3.6vmin, 28px);
-    color: var(--ui-fg-dim);
-    line-height: 1.25;
-    max-inline-size: min(80vw, 26ch);
-    padding: 0 clamp(8px, 2vw, 16px);
-    transition: opacity 0.2s ease;
-  }
-
-  .phrase.shimmer {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.5) 0%,
-      rgba(255, 255, 255, 1) 20%,
-      rgba(255, 255, 255, 0.6) 40%,
-      rgba(255, 255, 255, 0.85) 60%,
-      rgba(255, 255, 255, 0.6) 80%,
-      rgba(255, 255, 255, 0.5) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(var(--ui-shadow));
-    background-size: 200% auto;
-    animation: sheen 3.5s ease-in-out infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .phrase.shimmer {
-      animation: none;
-      background-size: auto;
-      color: var(--ui-fg-dim);
-    }
-  }
-
-  @keyframes sheen {
-    0% {
-      background-position: 200% 0;
-    }
-
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  .is-hidden {
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.28s ease, visibility 0.28s step-end;
-  }
-
-  .is-visible {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.28s ease;
-  }
-
-  .artwork-overlay {
-    position: fixed;
-    top: 20px;
-    bottom: 20px;
-    left: 20px;
-    right: 20px;
-    color: #f5f7ff;
-    padding: clamp(20px, 4vw, 28px);
-    border-radius: 18px;
-    z-index: 10;
-    pointer-events: none;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.35s ease, transform 0.35s ease;
-    background: rgba(15, 17, 26, 0.48);
-    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.32);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(16px) saturate(125%);
-    -webkit-backdrop-filter: blur(16px) saturate(125%);
-    overflow: hidden;
-  }
-
-  @supports not (backdrop-filter: blur(1px)) {
-    .artwork-overlay {
-      background: rgba(12, 14, 20, 0.72);
-    }
-  }
-
-  .artwork-overlay.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .artwork-overlay::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 40%);
-    opacity: 0.9;
-    pointer-events: none;
-  }
-
-  .artwork-overlay h2 {
-    position: relative;
-    font-size: clamp(1.5rem, 4vw, 2.2rem);
-    font-weight: 700;
-    margin-bottom: 10px;
-    letter-spacing: 0.02em;
-  }
-
-  .artwork-overlay p {
-    position: relative;
-    margin: 6px 0;
-    line-height: 1.65;
-    color: rgba(240, 244, 255, 0.85);
-  }
-
-  .artwork-overlay p:last-child {
-    margin-top: 16px;
-    font-size: 0.95rem;
-    color: rgba(224, 230, 255, 0.75);
   }
 </style>
