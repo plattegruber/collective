@@ -605,10 +605,10 @@
   }
 }} />
 
-<div class="app">
-  <div class="video-container">
-    <video bind:this={videoEl} autoplay muted playsinline></video>
-    <canvas bind:this={canvasEl}></canvas>
+<div class="relative h-screen w-full overflow-hidden bg-slate-900 text-slate-100 touch-manipulation">
+  <div class="absolute inset-0 h-full w-full">
+    <video class="absolute inset-0 h-full w-full object-cover bg-black" bind:this={videoEl} autoplay muted playsinline></video>
+    <canvas class="absolute inset-0 h-full w-full pointer-events-none" bind:this={canvasEl}></canvas>
   </div>
 
   <LoadingOverlay visible={showLoading} message={loadingMessage} />
@@ -633,57 +633,3 @@
 
   <ArtworkOverlay visible={artworkVisible} artwork={displayedArtwork} />
 </div>
-
-<style>
-  :global(:root) {
-    --ui-fg: #ffffff;
-    --ui-fg-dim: #ffffffcc;
-    --ui-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
-    --bracket-thickness: 2.4;
-  }
-
-  :global(html),
-  :global(body) {
-    height: 100%;
-    margin: 0;
-    background: #111;
-    color: var(--ui-fg);
-    font: 16px/1.2 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-      'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-  }
-
-  .app {
-    position: relative;
-    inline-size: 100%;
-    block-size: 100vh;
-    overflow: hidden;
-    touch-action: manipulation;
-  }
-
-  .video-container {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  video {
-    position: absolute;
-    inset: 0;
-    inline-size: 100%;
-    block-size: 100%;
-    object-fit: cover;
-    transform: translateZ(0);
-    background: #000;
-  }
-
-  canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    pointer-events: none;
-  }
-</style>

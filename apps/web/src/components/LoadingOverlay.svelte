@@ -4,18 +4,7 @@
 </script>
 
 {#if visible}
-  <div class="loading">{message}</div>
+  <div class="fixed inset-0 z-50 grid place-items-center bg-black/70 px-6 text-center text-lg font-semibold text-white">
+    {message}
+  </div>
 {/if}
-
-<style>
-  .loading {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    color: #fff;
-    font-family: system-ui, sans-serif;
-    z-index: 50;
-    background: rgba(0, 0, 0, 0.6);
-  }
-</style>

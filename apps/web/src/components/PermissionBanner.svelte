@@ -15,18 +15,23 @@
 </script>
 
 {#if visible}
-  <div class="permission-banner" role="status" aria-live="polite">
-    <div class="permission-inner">
-      <h2>Enable your camera</h2>
+  <div
+    class="pointer-events-none fixed left-1/2 top-[clamp(24px,10vh,96px)] z-60 w-[min(92vw,420px)] -translate-x-1/2"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="relative pointer-events-auto overflow-hidden rounded-2xl border border-white/20 bg-slate-900/60 px-6 py-7 text-center text-slate-100 shadow-2xl backdrop-blur-xl">
+      <div class="absolute inset-0 -z-10 bg-gradient-to-tr from-white/20 to-transparent"></div>
+      <h2 class="text-lg font-semibold tracking-wide md:text-xl">Enable your camera</h2>
       {#if message}
-        <p>{message}</p>
+        <p class="mt-2 text-sm leading-relaxed text-slate-200/80">{message}</p>
       {/if}
       {#if error}
-        <p class="permission-error">{error}</p>
+        <p class="mt-2 text-sm font-medium text-rose-300/90">{error}</p>
       {/if}
       {#if canRequest}
         <button
-          class="permission-button"
+          class="mt-4 inline-flex items-center justify-center rounded-full bg-white px-6 py-2 text-sm font-semibold text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-progress disabled:opacity-60 disabled:shadow-none"
           type="button"
           on:click={handleRequest}
           disabled={isRequesting}
@@ -37,75 +42,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  .permission-banner {
-    position: fixed;
-    top: clamp(24px, 10vh, 96px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(92vw, 420px);
-    z-index: 60;
-    pointer-events: none;
-  }
-
-  .permission-inner {
-    pointer-events: auto;
-    backdrop-filter: blur(16px) saturate(130%);
-    -webkit-backdrop-filter: blur(16px) saturate(130%);
-    background: rgba(14, 18, 28, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 18px;
-    padding: clamp(18px, 4vw, 28px);
-    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
-    color: rgba(240, 244, 255, 0.92);
-    text-align: center;
-  }
-
-  @supports not (backdrop-filter: blur(1px)) {
-    .permission-inner {
-      background: rgba(11, 14, 22, 0.82);
-    }
-  }
-
-  h2 {
-    margin: 0 0 10px;
-    font-size: clamp(1.4rem, 3.8vw, 1.8rem);
-    letter-spacing: 0.01em;
-  }
-
-  p {
-    margin: 6px 0;
-    line-height: 1.5;
-  }
-
-  .permission-error {
-    color: rgba(255, 99, 132, 0.85);
-    font-size: 0.95rem;
-  }
-
-  .permission-button {
-    margin-top: 16px;
-    padding: 12px 20px;
-    border-radius: 999px;
-    border: none;
-    font-size: 1rem;
-    font-weight: 600;
-    color: rgba(13, 17, 26, 0.95);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(205, 218, 255, 0.85) 100%);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .permission-button:disabled {
-    opacity: 0.6;
-    cursor: progress;
-    box-shadow: none;
-  }
-
-  .permission-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
-  }
-</style>
