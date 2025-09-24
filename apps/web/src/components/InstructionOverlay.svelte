@@ -1,33 +1,13 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
-
   export let visible = true;
   export let phrase = '';
   export let shimmer = false;
   export let phraseOpacity = 1;
-
-  const dispatch = createEventDispatcher();
-
-  function handleOverlayClick() {
-    dispatch('hide');
-  }
-
-  function requestNewPhrase() {
-    dispatch('next');
-  }
-
-  function handlePhraseKey(event) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      requestNewPhrase();
-    }
-  }
 </script>
 
 <div
   class={`overlay ${visible ? 'is-visible' : 'is-hidden'}`}
   aria-hidden={!visible}
-  on:click={handleOverlayClick}
 >
   <div class="hud">
     <svg class="brackets pulse" viewBox="0 0 100 64" role="img" aria-label="framing guides">
@@ -37,13 +17,9 @@
       <path d="M92 46 L92 56 L72 56" />
     </svg>
     <div
-      role="button"
-      tabindex="0"
       class={`phrase ${shimmer ? 'shimmer' : ''}`}
       aria-live="polite"
       style={`opacity: ${phraseOpacity};`}
-      on:click={requestNewPhrase}
-      on:keydown={handlePhraseKey}
     >
       {phrase}
     </div>
@@ -113,7 +89,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    pointer-events: auto;
+    pointer-events: none;
     text-align: center;
     letter-spacing: 0.01em;
     font-weight: 600;

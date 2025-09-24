@@ -31,8 +31,6 @@
   let permissionStatusHandle;
 
   let videoEl;
-  let canvasEl;
-  let ctx;
   let stream;
   let animationFrameId;
   let phraseTimeout;
@@ -182,37 +180,6 @@
       } else {
         detectionBuffer.set(label, decayed);
       }
-    });
-  }
-
-  function drawBoxes(detections) {
-    if (!ctx || !videoEl || !canvasEl) return;
-    canvasEl.width = videoEl.videoWidth;
-    canvasEl.height = videoEl.videoHeight;
-    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-
-    ctx.setLineDash([8, 6]);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#00e0ff';
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.font = '16px system-ui';
-
-    detections.forEach((box) => {
-      const x = box.x1;
-      const y = box.y1;
-      const w = box.x2 - box.x1;
-      const h = box.y2 - box.y1;
-      ctx.strokeRect(x, y, w, h);
-
-      const labelText = labels[box.label] ?? `class_${box.label}`;
-      const confidence = `${(box.score * 100).toFixed(0)}%`;
-      const text = `${labelText} ${confidence}`;
-
-      const metrics = ctx.measureText(text);
-      ctx.fillRect(x, y - 25, metrics.width + 10, 22);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(text, x + 5, y - 8);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     });
   }
 
@@ -516,7 +483,6 @@
   async function detectLoop() {
     try {
       const boxes = await processFrame();
-      drawBoxes(boxes);
       updateArtworkOverlay(boxes);
     } catch (error) {
       console.error('Detection error:', error);
@@ -575,9 +541,6 @@
 
   onMount(async () => {
     await tick();
-    if (canvasEl) {
-      ctx = canvasEl.getContext('2d');
-    }
     pickNewPhrase();
     await init();
   });
@@ -608,7 +571,6 @@
 <div class="app">
   <div class="video-container">
     <video bind:this={videoEl} autoplay muted playsinline></video>
-    <canvas bind:this={canvasEl}></canvas>
   </div>
 
   <LoadingOverlay visible={showLoading} message={loadingMessage} />
@@ -627,8 +589,6 @@
     phrase={phraseText}
     shimmer={shouldShimmer}
     phraseOpacity={phraseOpacity}
-    on:hide={hideOverlay}
-    on:next={pickNewPhrase}
   />
 
   <ArtworkOverlay visible={artworkVisible} artwork={displayedArtwork} />
@@ -675,15 +635,5 @@
     object-fit: cover;
     transform: translateZ(0);
     background: #000;
-  }
-
-  canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    pointer-events: none;
   }
 </style>
