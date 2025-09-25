@@ -103,11 +103,12 @@ export default {
       const pid = safePieceId(pieceId);
 
       const seenK = uidSeenKey(uid, pid);
-      const recently = await env.REACTIONS_KV.get(seenK);
-      if (recently) {
+      const seenValue = await env.REACTIONS_KV.get(seenK);
+      const lastSeen = seenValue ? Number(seenValue) : null;
+      if (lastSeen !== null && Number.isFinite(lastSeen) && now() - lastSeen < 10_000) {
         return json(env, { ok: true, throttled: true }, 200);
       }
-      await env.REACTIONS_KV.put(seenK, "1", { expirationTtl: 10 });
+      await env.REACTIONS_KV.put(seenK, String(now()), { expirationTtl: 120 });
 
       const minuteOk = await bump(env, ipMinuteKey(ip), 70, 10);
       const dayOk = await bump(env, ipDayKey(ip), 60 * 60 * 24, 200);
