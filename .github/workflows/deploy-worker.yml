@@ -21,7 +21,6 @@ jobs:
         env:
           TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
           TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
-          TF_VAR_workers_subdomain: "plattegruber"
         run: |
           terraform init -input=false
           terraform apply -auto-approve -input=false
@@ -57,6 +56,42 @@ jobs:
         run: |
           if [ -f infra/tf-outputs.json ]; then SRC=infra/tf-outputs.json; else SRC=/tmp/tf-outputs.json; fi
           echo "KV_NAMESPACE_ID=$(jq -r '.kv_namespace_id.value' $SRC)" >> $GITHUB_OUTPUT
+
+      - name: Ensure workers.dev subdomain
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          WORKERS_SUBDOMAIN: plattegruber
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp)
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -o "$TMP"
+          existing=$(jq -r '.result.subdomain // ""' "$TMP")
+          if [ "$existing" = "$WORKERS_SUBDOMAIN" ]; then
+            echo "Subdomain already configured as $existing"
+            exit 0
+          fi
+          payload=$(jq -n --arg sub "$WORKERS_SUBDOMAIN" '{subdomain: $sub}')
+          status=$(curl -sS -o "$TMP" -w '%{http_code}' -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain")
+          if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+            echo "Subdomain set to $WORKERS_SUBDOMAIN"
+            exit 0
+          fi
+          errors=$(jq -r '.errors[]?.message // empty' "$TMP")
+          if echo "$errors" | grep -qi 'already'; then
+            echo "Subdomain already registered: $errors"
+            exit 0
+          fi
+          echo "Failed to configure subdomain (status $status): $errors" >&2
+          exit 1
 
       - name: Inject IDs into wrangler.toml
         working-directory: workers
