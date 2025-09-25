@@ -1,0 +1,81 @@
+name: Deploy Worker & Infra
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "workers/**"
+      - "infra/**"
+      - ".github/workflows/deploy-worker.yml"
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init & Apply
+        working-directory: infra
+        env:
+          TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
+          TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+          terraform output -json > tf-outputs.json
+
+      - name: Export TF outputs
+        id: tf
+        working-directory: infra
+        run: |
+          echo "KV_NAMESPACE_ID=$(jq -r '.kv_namespace_id.value' tf-outputs.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload TF outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-outputs
+          path: infra/tf-outputs.json
+
+  deploy_worker:
+    runs-on: ubuntu-latest
+    needs: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get TF outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-outputs
+          path: /tmp
+        continue-on-error: true
+
+      - name: Read TF outputs (fallback)
+        id: tf
+        run: |
+          if [ -f infra/tf-outputs.json ]; then SRC=infra/tf-outputs.json; else SRC=/tmp/tf-outputs.json; fi
+          echo "KV_NAMESPACE_ID=$(jq -r '.kv_namespace_id.value' $SRC)" >> $GITHUB_OUTPUT
+
+      - name: Inject IDs into wrangler.toml
+        working-directory: workers
+        run: |
+          sed -i "s|\${KV_NAMESPACE_ID}|${{ steps.tf.outputs.KV_NAMESPACE_ID }}|g" wrangler.toml
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish Worker
+        working-directory: workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          npx wrangler publish

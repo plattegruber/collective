@@ -1,0 +1,13 @@
+name = "gg-reactions"
+main = "dist/worker.mjs"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "REACTIONS_KV"
+id = "${KV_NAMESPACE_ID}"
+
+[vars]
+ALLOWED_ORIGIN = "https://plattegruber.github.io"
+
+[observability]
+enabled = true
