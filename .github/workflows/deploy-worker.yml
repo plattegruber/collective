@@ -52,7 +52,7 @@ jobs:
           TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
           TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
-          terraform import cloudflare_workers_kv_namespace.reactions ${{ steps.kv_lookup.outputs.namespace_id }}
+          terraform import cloudflare_workers_kv_namespace.reactions ${{ secrets.CF_ACCOUNT_ID }}/${{ steps.kv_lookup.outputs.namespace_id }}
 
       - name: Terraform Apply
         working-directory: infra
