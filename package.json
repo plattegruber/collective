@@ -3,11 +3,11 @@
   "private": true,
   "scripts": {
     "build": "esbuild workers/src/worker.ts --bundle --format=esm --outfile=workers/dist/worker.mjs",
-    "deploy": "wrangler publish"
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "esbuild": "^0.23.0",
-    "wrangler": "^3.72.0",
+    "wrangler": "^4.40.0",
     "typescript": "^5.5.0"
   }
 }
