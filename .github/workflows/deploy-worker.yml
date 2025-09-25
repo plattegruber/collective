@@ -16,13 +16,50 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init & Apply
+      - name: Terraform Init
         working-directory: infra
         env:
           TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
           TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           terraform init -input=false
+
+      - name: Lookup existing KV namespace
+        id: kv_lookup
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp)
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" \
+            -o "$TMP"
+          existing=$(jq -r '.result[] | select(.title == "gg-reactions") | .id' "$TMP" | head -n 1)
+          if [ -n "$existing" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "namespace_id=$existing" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform Import existing namespace
+        if: steps.kv_lookup.outputs.found == 'true'
+        working-directory: infra
+        env:
+          TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
+          TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          terraform import cloudflare_workers_kv_namespace.reactions ${{ steps.kv_lookup.outputs.namespace_id }}
+
+      - name: Terraform Apply
+        working-directory: infra
+        env:
+          TF_VAR_api_token: ${{ secrets.CF_API_TOKEN }}
+          TF_VAR_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
           terraform apply -auto-approve -input=false
           terraform output -json > tf-outputs.json
 
