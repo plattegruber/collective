@@ -72,6 +72,7 @@
 
   let showSplash = $state(!IS_TEST_MODE);
   let hasStarted = false;
+  let splashReady = $state(false);
 
   const getFrameCanvas = (() => {
     let canvasRef = null;
@@ -544,6 +545,8 @@
         showPermissionPrompt = true;
       }
 
+      splashReady = true;
+
       if (!artworkLoaded || !modelLoaded) {
         console.warn('Application initialized with missing resources.', {
           artworkLoaded,
@@ -558,6 +561,8 @@
       if (permissionState !== 'granted') {
         showPermissionPrompt = true;
       }
+
+      splashReady = true;
     }
   }
 
@@ -566,6 +571,7 @@
     hasStarted = true;
     pickNewPhrase();
     await init();
+    splashReady = true;
   }
 
   async function handleSplashDone() {
@@ -586,6 +592,7 @@
       displayedArtwork = { ...TEST_ARTWORK };
       currentArtwork = TEST_ARTWORK.id;
       artworkVisible = true;
+      splashReady = true;
       return;
     }
 
@@ -645,8 +652,9 @@
   {#if showSplash}
     <SplashScreen
       subtitle="Point • Discover • Remember"
-      overlayOpacity={0.45}
-      dismissible={true}
+      ready={splashReady}
+      minDurationMs={900}
+      fadeMs={350}
       on:done={handleSplashDone}
     />
   {/if}
