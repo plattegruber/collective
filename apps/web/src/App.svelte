@@ -571,7 +571,6 @@
     hasStarted = true;
     pickNewPhrase();
     await init();
-    splashReady = true;
   }
 
   async function handleSplashDone() {
@@ -598,6 +597,8 @@
 
     if (!showSplash) {
       await beginExperience();
+    } else {
+      splashReady = true;
     }
   });
 
