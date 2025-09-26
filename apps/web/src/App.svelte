@@ -4,6 +4,7 @@
   import PermissionBanner from './components/PermissionBanner.svelte';
   import InstructionOverlay from './components/InstructionOverlay.svelte';
   import ArtworkOverlay from './components/ArtworkOverlay.svelte';
+  import SplashScreen from './components/SplashScreen.svelte';
 
   const BASE_URL = import.meta.env.BASE_URL ?? '/';
   const CONFIDENCE_THRESHOLD = 0.7;
@@ -68,6 +69,9 @@
   let displayedArtwork = $state({ ...EMPTY_ARTWORK });
 
   const canRequestPermission = $derived(['prompt', 'denied', 'error'].includes(permissionState));
+
+  let showSplash = $state(!IS_TEST_MODE);
+  let hasStarted = false;
 
   const getFrameCanvas = (() => {
     let canvasRef = null;
@@ -557,10 +561,25 @@
     }
   }
 
+  async function beginExperience() {
+    if (hasStarted) return;
+    hasStarted = true;
+    pickNewPhrase();
+    await init();
+  }
+
+  async function handleSplashDone() {
+    showSplash = false;
+    if (!IS_TEST_MODE) {
+      await beginExperience();
+    }
+  }
+
   onMount(async () => {
     await tick();
 
     if (IS_TEST_MODE) {
+      showSplash = false;
       showLoading = false;
       showPermissionPrompt = false;
       overlayVisible = false;
@@ -570,8 +589,9 @@
       return;
     }
 
-    pickNewPhrase();
-    await init();
+    if (!showSplash) {
+      await beginExperience();
+    }
   });
 
   onDestroy(() => {
@@ -621,6 +641,15 @@
   />
 
   <ArtworkOverlay visible={artworkVisible} artwork={displayedArtwork} />
+
+  {#if showSplash}
+    <SplashScreen
+      subtitle="Point • Discover • Remember"
+      overlayOpacity={0.45}
+      dismissible={true}
+      on:done={handleSplashDone}
+    />
+  {/if}
 </div>
 
 <style>
