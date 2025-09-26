@@ -73,6 +73,9 @@
   let showSplash = $state(!IS_TEST_MODE);
   let hasStarted = false;
   let splashReady = $state(false);
+  const DEFAULT_SPLASH_SUBTITLE = 'Point • Discover • Remember';
+  let splashSubtitle = $state(DEFAULT_SPLASH_SUBTITLE);
+  let splashStatus = $state('Preparing experience...');
 
   const getFrameCanvas = (() => {
     let canvasRef = null;
@@ -93,6 +96,13 @@
       return { canvas: canvasRef, context: contextRef };
     };
   })();
+
+  function setStatus(message) {
+    loadingMessage = message;
+    if (showSplash) {
+      splashStatus = message;
+    }
+  }
 
   function pickNewPhrase() {
     const options = phraseText ? phrases.filter((phrase) => phrase !== phraseText) : phrases;
@@ -355,7 +365,7 @@
         isRequestingCamera = true;
       }
       showLoading = true;
-      loadingMessage = 'Starting camera...';
+      setStatus('Starting camera...');
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
       });
@@ -398,6 +408,7 @@
     showPermissionPrompt = false;
     showLoading = false;
     lastCameraError = '';
+    setStatus('Ready');
 
     if (!detectionStarted) {
       detectionStarted = true;
@@ -424,6 +435,7 @@
 
     updatePermissionMessage(permissionState);
     showPermissionPrompt = true;
+    setStatus(lastCameraError || 'Camera access blocked.');
   }
 
   async function processFrame() {
@@ -517,6 +529,8 @@
     let artworkLoaded = false;
     let modelLoaded = false;
 
+    setStatus('Loading detector assets...');
+
     try {
       const [artworkResult, modelResult] = await Promise.allSettled([
         loadArtworkContent(),
@@ -531,18 +545,20 @@
 
       if (modelResult.status === 'rejected') {
         console.error('Model failed to load:', modelResult.reason);
-        loadingMessage = 'Detector model failed to load. Check your deployment assets and refresh.';
+        setStatus('Detector model failed to load. Refresh and try again.');
       } else {
         modelLoaded = true;
       }
 
       showLoading = false;
+      setStatus('Checking camera access...');
 
       await checkCameraPermission();
       if (permissionState === 'granted') {
         await requestCameraAccess(true);
       } else {
         showPermissionPrompt = true;
+        setStatus('Allow camera access to begin');
       }
 
       splashReady = true;
@@ -555,7 +571,7 @@
       }
     } catch (error) {
       console.error('Initialization failed unexpectedly:', error);
-      loadingMessage = 'Something went wrong during startup. Refresh the page and try again.';
+      setStatus('Something went wrong during startup. Refresh and try again.');
       showLoading = false;
       await checkCameraPermission();
       if (permissionState !== 'granted') {
@@ -575,7 +591,9 @@
 
   async function handleSplashDone() {
     showSplash = false;
-    if (!IS_TEST_MODE) {
+    splashSubtitle = DEFAULT_SPLASH_SUBTITLE;
+    splashStatus = '';
+    if (!hasStarted && !IS_TEST_MODE) {
       await beginExperience();
     }
   }
@@ -592,14 +610,13 @@
       currentArtwork = TEST_ARTWORK.id;
       artworkVisible = true;
       splashReady = true;
+      splashSubtitle = DEFAULT_SPLASH_SUBTITLE;
+      splashStatus = '';
       return;
     }
 
-    if (!showSplash) {
-      await beginExperience();
-    } else {
-      splashReady = true;
-    }
+    splashReady = false;
+    beginExperience();
   });
 
   onDestroy(() => {
@@ -630,7 +647,7 @@
     <video bind:this={videoEl} autoplay muted playsinline></video>
   </div>
 
-  <LoadingOverlay visible={showLoading} message={loadingMessage} />
+  <LoadingOverlay visible={showLoading && !showSplash} message={loadingMessage} />
 
   <PermissionBanner
     visible={showPermissionPrompt}
@@ -652,7 +669,8 @@
 
   {#if showSplash}
     <SplashScreen
-      subtitle="Point • Discover • Remember"
+      subtitle={splashSubtitle}
+      status={splashStatus}
       ready={splashReady}
       minDurationMs={900}
       fadeMs={350}

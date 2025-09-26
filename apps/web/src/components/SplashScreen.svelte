@@ -4,6 +4,7 @@
   const {
     title = 'Gallery Guide',
     subtitle = 'Point • Discover • Remember',
+    status = '',
     ready = false,
     minDurationMs = 900,
     fadeMs = 350,
@@ -59,7 +60,11 @@
           {title}
         </h1>
         {#if subtitle}
-          <p class="mt-2 text-sm text-white/70 sm:text-base">{subtitle}</p>
+          <p class="mt-2 text-sm text-white/80 sm:text-base">{subtitle}</p>
+        {/if}
+
+        {#if status}
+          <p class="mt-4 text-xs text-white/60 sm:text-sm">{status}</p>
         {/if}
 
         <div class="mt-6 flex items-center gap-2">
