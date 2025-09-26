@@ -44,12 +44,15 @@
   let loadingMessage = $state('Loading detector model...');
 
   let artworkVisible = $state(false);
-  let displayedArtwork = $state({
+  const EMPTY_ARTWORK = {
+    id: '',
     title: '',
     byline: '',
     materials: '',
     description: '',
-  });
+  };
+
+  let displayedArtwork = $state({ ...EMPTY_ARTWORK });
 
   const canRequestPermission = $derived(['prompt', 'denied', 'error'].includes(permissionState));
 
@@ -196,6 +199,7 @@
     if (artwork.year) bylineParts.push(artwork.year);
 
     displayedArtwork = {
+      id: artworkId,
       title: artwork.title ?? '',
       byline: bylineParts.join(', '),
       materials: artwork.materials ?? '',
@@ -211,6 +215,7 @@
     if (!currentArtwork) return;
     artworkVisible = false;
     currentArtwork = null;
+    displayedArtwork = { ...EMPTY_ARTWORK };
     showInstructionOverlay();
     pickNewPhrase();
   }

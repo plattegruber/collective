@@ -1,18 +1,78 @@
 <script>
-  export let visible = false;
-  export let artwork = {
+  import { onDestroy } from 'svelte';
+  import ReactionPanel from './ReactionPanel.svelte';
+
+  const DEFAULT_ARTWORK = {
+    id: '',
     title: '',
     byline: '',
     materials: '',
     description: '',
   };
+
+  const { visible = false, artwork = DEFAULT_ARTWORK } = $props();
+
+  let panelMessage = $state('');
+  let messageTimer = null;
+
+  $effect(() => {
+    if (!visible) {
+      panelMessage = '';
+      if (messageTimer) {
+        clearTimeout(messageTimer);
+        messageTimer = null;
+      }
+    }
+  });
+
+  function setPanelMessage(value) {
+    if (messageTimer) {
+      clearTimeout(messageTimer);
+      messageTimer = null;
+    }
+
+    panelMessage = value;
+    if (value) {
+      messageTimer = setTimeout(() => {
+        panelMessage = '';
+        messageTimer = null;
+      }, 2200);
+    }
+  }
+
+  onDestroy(() => {
+    if (messageTimer) {
+      clearTimeout(messageTimer);
+    }
+  });
 </script>
 
 <div class={`artwork-overlay ${visible ? 'visible' : ''}`}>
-  <h2>{artwork.title}</h2>
-  <p>{artwork.byline}</p>
-  <p>{artwork.materials}</p>
-  <p>{artwork.description}</p>
+  <div class="overlay-shell">
+    <div class="overlay-copy">
+      <h2>{artwork.title}</h2>
+      <p class="overlay-byline">{artwork.byline}</p>
+      <p class="overlay-materials">{artwork.materials}</p>
+      <p class="overlay-description">{artwork.description}</p>
+    </div>
+
+    <div class="overlay-actions">
+      <ReactionPanel
+        pieceId={artwork.id}
+        active={visible && Boolean(artwork.id)}
+        on:reacted={(event) => {
+          if (event?.detail?.throttled) {
+            setPanelMessage('Already counted—thanks!');
+          } else {
+            setPanelMessage('Reaction sent!');
+          }
+        }}
+      />
+      {#if panelMessage}
+        <p class="reaction-toast">{panelMessage}</p>
+      {/if}
+    </div>
+  </div>
 </div>
 
 <style>
@@ -26,7 +86,7 @@
     padding: clamp(20px, 4vw, 28px);
     border-radius: 18px;
     z-index: 10;
-    pointer-events: none;
+    pointer-events: auto;
     opacity: 0;
     transform: translateY(20px);
     transition: opacity 0.35s ease, transform 0.35s ease;
@@ -59,24 +119,56 @@
     pointer-events: none;
   }
 
+  .overlay-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .overlay-copy {
+    pointer-events: none;
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   .artwork-overlay h2 {
     position: relative;
     font-size: clamp(1.5rem, 4vw, 2.2rem);
     font-weight: 700;
-    margin-bottom: 10px;
+    margin: 0;
     letter-spacing: 0.02em;
   }
 
-  .artwork-overlay p {
+  .overlay-byline,
+  .overlay-materials,
+  .overlay-description {
     position: relative;
-    margin: 6px 0;
+    margin: 0;
     line-height: 1.65;
     color: rgba(240, 244, 255, 0.85);
   }
 
-  .artwork-overlay p:last-child {
-    margin-top: 16px;
+  .overlay-description {
+    margin-top: 12px;
     font-size: 0.95rem;
     color: rgba(224, 230, 255, 0.75);
+  }
+
+  .overlay-actions {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .reaction-toast {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
   }
 </style>
