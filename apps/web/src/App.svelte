@@ -76,6 +76,7 @@
   const DEFAULT_SPLASH_SUBTITLE = 'Point • Discover • Remember';
   let splashSubtitle = $state(DEFAULT_SPLASH_SUBTITLE);
   let splashStatus = $state('Preparing experience...');
+  let cameraReady = $state(false);
 
   const getFrameCanvas = (() => {
     let canvasRef = null;
@@ -409,6 +410,7 @@
     showLoading = false;
     lastCameraError = '';
     setStatus('Ready');
+    cameraReady = true;
 
     if (!detectionStarted) {
       detectionStarted = true;
@@ -588,6 +590,7 @@
     hasStarted = true;
     splashReady = false;
     splashStatus = 'Preparing experience...';
+    cameraReady = false;
     pickNewPhrase();
     await init();
   }
@@ -615,6 +618,7 @@
       splashReady = true;
       splashSubtitle = DEFAULT_SPLASH_SUBTITLE;
       splashStatus = 'Enjoy!';
+      cameraReady = true;
       return;
     }
 
@@ -646,6 +650,7 @@
 
 <div class="app">
   <div class="video-container">
+    <div class={`camera-placeholder ${cameraReady ? 'camera-placeholder--hidden' : ''}`}></div>
     <video bind:this={videoEl} autoplay muted playsinline></video>
   </div>
 
@@ -674,7 +679,7 @@
       subtitle={splashSubtitle}
       status={splashStatus}
       ready={splashReady}
-      minDurationMs={3000}
+      minDurationMs={2500}
       fadeMs={350}
       on:done={handleSplashDone}
     />
@@ -712,6 +717,21 @@
     inset: 0;
     width: 100%;
     height: 100%;
+  }
+
+  .camera-placeholder {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), transparent 55%),
+      radial-gradient(circle at 70% 70%, rgba(16, 185, 129, 0.16), transparent 52%),
+      #0b0f18;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+    opacity: 1;
+  }
+
+  .camera-placeholder.camera-placeholder--hidden {
+    opacity: 0;
   }
 
   video {
