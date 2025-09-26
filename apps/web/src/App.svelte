@@ -295,17 +295,17 @@
         permissionMessage = '';
         break;
       case 'denied':
-        permissionMessage = 'Camera access is blocked. Allow camera access in your browser settings and try again.';
+        permissionMessage = 'Camera access is blocked in your browser. Enable it in settings, then refresh to continue.';
         break;
       case 'prompt':
       case 'unknown':
-        permissionMessage = 'We use your camera to detect artworks in real time. Grant access to start the experience.';
+        permissionMessage = 'Gallery Guide needs a live camera view to overlay each piece. Tap Enable Camera to continue.';
         break;
       case 'unsupported':
-        permissionMessage = 'This browser does not support camera access required for the AR experience.';
+        permissionMessage = 'This browser cannot share the camera. Try opening the page in Safari or Chrome.';
         break;
       case 'error':
-        permissionMessage = 'We could not access the camera. Check your device camera or try again.';
+        permissionMessage = 'We could not open the camera. Make sure it isn\'t in use and try again.';
         break;
       default:
         permissionMessage = 'Camera access is required to continue.';
