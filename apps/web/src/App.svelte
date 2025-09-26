@@ -16,6 +16,19 @@
 
   const phrases = ['Point me toward the art.'];
 
+  const isBrowser = typeof window !== 'undefined';
+  const resolvedPath = isBrowser ? window.location.pathname.toLowerCase() : '';
+  const IS_TEST_MODE = isBrowser && (resolvedPath.endsWith('/test') || resolvedPath.endsWith('/test/'));
+
+  const TEST_ARTWORK = {
+    id: 'test:pollock_full_fathom_five',
+    title: 'Full Fathom Five',
+    byline: 'Jackson Pollock, 1947',
+    materials: 'Oil on canvas',
+    description:
+      'Test mode mock entry so you can try reactions without the detector. Imagine you are standing before Pollock\'s Full Fathom Five.',
+  };
+
   let artContent = $state({});
   let labels = $state({});
   let currentArtwork = $state(null);
@@ -546,6 +559,17 @@
 
   onMount(async () => {
     await tick();
+
+    if (IS_TEST_MODE) {
+      showLoading = false;
+      showPermissionPrompt = false;
+      overlayVisible = false;
+      displayedArtwork = { ...TEST_ARTWORK };
+      currentArtwork = TEST_ARTWORK.id;
+      artworkVisible = true;
+      return;
+    }
+
     pickNewPhrase();
     await init();
   });
