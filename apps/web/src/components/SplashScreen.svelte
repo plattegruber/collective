@@ -6,7 +6,7 @@
     subtitle = 'Point • Discover • Remember',
     status = '',
     ready = false,
-    minDurationMs = 900,
+    minDurationMs = 3000,
     fadeMs = 350,
   } = $props();
 
@@ -67,7 +67,7 @@
           <p class="mt-4 text-xs text-white/60 sm:text-sm">{status}</p>
         {/if}
 
-        <div class="mt-6 flex items-center gap-2">
+        <div class="mt-6 flex items-center justify-center gap-2">
           <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/80 [animation-delay:-200ms]"></span>
           <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70"></span>
           <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/60 [animation-delay:200ms]"></span>

@@ -556,6 +556,7 @@
       await checkCameraPermission();
       if (permissionState === 'granted') {
         await requestCameraAccess(true);
+        setStatus('Enjoy!');
       } else {
         showPermissionPrompt = true;
         setStatus('Allow camera access to begin');
@@ -585,6 +586,8 @@
   async function beginExperience() {
     if (hasStarted) return;
     hasStarted = true;
+    splashReady = false;
+    splashStatus = 'Preparing experience...';
     pickNewPhrase();
     await init();
   }
@@ -611,11 +614,10 @@
       artworkVisible = true;
       splashReady = true;
       splashSubtitle = DEFAULT_SPLASH_SUBTITLE;
-      splashStatus = '';
+      splashStatus = 'Enjoy!';
       return;
     }
 
-    splashReady = false;
     beginExperience();
   });
 
@@ -672,7 +674,7 @@
       subtitle={splashSubtitle}
       status={splashStatus}
       ready={splashReady}
-      minDurationMs={900}
+      minDurationMs={3000}
       fadeMs={350}
       on:done={handleSplashDone}
     />
