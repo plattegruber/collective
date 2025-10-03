@@ -1,9 +1,9 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
+  import logoUrl from '../assets/logo.png';
 
   const {
     title = 'Gallery Guide',
-    subtitle = 'Point • Discover • Remember',
     status = '',
     ready = false,
     minDurationMs = 3000,
@@ -12,11 +12,19 @@
 
   const dispatch = createEventDispatcher();
 
+  const LOGO_APPEAR_DELAY = 120;
+
   let mountedAt = 0;
   let hiding = $state(false);
+  let entering = $state(true);
 
   onMount(() => {
     mountedAt = Date.now();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        entering = false;
+      }, LOGO_APPEAR_DELAY);
+    });
   });
 
   const minimumWait = (elapsed) => Math.max(0, minDurationMs - elapsed);
@@ -38,48 +46,94 @@
   });
 </script>
 
-<div class="fixed inset-0 z-[60] select-none" aria-hidden="true">
-  <div class="absolute inset-0 bg-neutral-950"></div>
+<div
+  class="splash"
+  aria-hidden="true"
+  class:hiding={hiding}
+  style={`--fade-duration:${fadeMs}ms`}
+>
+  <div class="splash-inner" class:hiding={hiding}>
+    <img
+      class="splash-logo"
+      src={logoUrl}
+      alt={`${title} logo`}
+      decoding="async"
+      class:entering={entering}
+      class:hiding={hiding}
+    />
 
-  <div class="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl opacity-30 bg-gradient-to-br from-fuchsia-500 to-indigo-500"></div>
-  <div class="pointer-events-none absolute -bottom-24 -right-16 h-72 w-72 rounded-full blur-3xl opacity-25 bg-gradient-to-br from-emerald-400 to-cyan-500"></div>
-
-  <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/60 to-transparent"></div>
-  <div class="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent"></div>
-  <div class="pointer-events-none absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-black/60 to-transparent"></div>
-  <div class="pointer-events-none absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-black/60 to-transparent"></div>
-
-  <div class="absolute inset-0 grid place-items-center p-8">
-    <div class="flex flex-col items-center text-center">
-      <div
-        class="translate-y-0 transition-transform duration-500 ease-out"
-        class:opacity-0={hiding}
-        class:scale-95={hiding}
-      >
-        <h1 class="text-4xl font-semibold tracking-wide text-white sm:text-5xl">
-          {title}
-        </h1>
-        {#if subtitle}
-          <p class="mt-2 text-sm text-white/80 sm:text-base">{subtitle}</p>
-        {/if}
-
-        {#if status}
-          <p class="mt-4 text-xs text-white/60 sm:text-sm">{status}</p>
-        {/if}
-
-        <div class="mt-6 flex items-center justify-center gap-2">
-          <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/80 [animation-delay:-200ms]"></span>
-          <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/70"></span>
-          <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-white/60 [animation-delay:200ms]"></span>
-        </div>
-      </div>
-    </div>
+    {#if status}
+      <p class="splash-status">{status}</p>
+    {/if}
   </div>
-
-  <div
-    class="absolute inset-0 bg-black/0 transition-opacity"
-    style={`transition-duration:${fadeMs}ms`}
-    class:opacity-0={!hiding}
-    class:opacity-100={hiding}
-  ></div>
 </div>
+
+<style>
+  .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+    background: #97d8c4;
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity var(--fade-duration, 350ms) ease, transform var(--fade-duration, 350ms) ease;
+  }
+
+  .splash.hiding {
+    opacity: 0;
+    transform: translateX(1.25rem);
+  }
+
+  .splash-inner {
+    max-width: 24rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    color: #0f2a23;
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity var(--fade-duration, 350ms) ease, transform var(--fade-duration, 350ms) ease;
+  }
+
+  .splash-inner.hiding {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+
+  .splash-logo {
+    inline-size: clamp(170px, 42vw, 280px);
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    object-position: center;
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity var(--fade-duration, 350ms) ease, transform var(--fade-duration, 350ms) ease;
+  }
+
+  .splash-logo.entering {
+    opacity: 0;
+    transform: translateX(-1.5rem);
+  }
+
+  .splash-logo.hiding {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+
+  .splash-status {
+    margin: 0.5rem 0 0;
+    font-size: 0.95rem;
+    color: rgba(15, 42, 35, 0.68);
+  }
+
+  @media (max-width: 480px) {
+    .splash-inner {
+      gap: 0.75rem;
+    }
+  }
+</style>
