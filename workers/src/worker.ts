@@ -105,7 +105,7 @@ export default {
       const seenK = uidSeenKey(uid, pid);
       const seenValue = await env.REACTIONS_KV.get(seenK);
       const lastSeen = seenValue ? Number(seenValue) : null;
-      if (lastSeen !== null && Number.isFinite(lastSeen) && now() - lastSeen < 10_000) {
+      if (lastSeen !== null && Number.isFinite(lastSeen) && now() - lastSeen < 1_000) {
         return json(env, { ok: true, throttled: true }, 200);
       }
       await env.REACTIONS_KV.put(seenK, String(now()), { expirationTtl: 120 });
