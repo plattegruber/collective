@@ -1,10 +1,6 @@
 <script>
   const { active = false, counts = [], seed = 0 } = $props();
 
-  const MIN_CONFETTI = 24;
-  const MAX_CONFETTI = 140;
-  const FALLBACK_EMOJIS = ['❤️', '👀', '🤔', '😮', '😂', '🔥'];
-
   let pieces = $state([]);
 
   function createRng(seedValue) {
@@ -18,39 +14,42 @@
     };
   }
 
-  function pickWeighted(items, random) {
-    const total = items.reduce((sum, item) => sum + Math.max(0, item.count ?? 0), 0);
-    if (total <= 0) {
-      const pool = items.length > 0 ? items : FALLBACK_EMOJIS.map((emoji) => ({ emoji, count: 1 }));
-      return pool[Math.floor(random() * pool.length)] ?? pool[0];
-    }
-
-    const threshold = random() * total;
-    let running = 0;
-    for (const item of items) {
-      const value = Math.max(0, item.count ?? 0);
-      running += value;
-      if (threshold <= running) {
-        return item;
-      }
-    }
-    return items[items.length - 1];
+  function normalizeCount(value) {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return Math.floor(parsed);
   }
 
   function buildPieces(data, seedValue) {
-    const list = Array.isArray(data) && data.length > 0
-      ? data.filter((item) => typeof item?.emoji === 'string')
-      : FALLBACK_EMOJIS.map((emoji) => ({ emoji, count: 1 }));
+    const source = Array.isArray(data)
+      ? data
+          .filter((item) => typeof item?.emoji === 'string')
+          .map((item) => ({ emoji: item.emoji, count: normalizeCount(item.count) }))
+          .filter((item) => item.count > 0)
+      : [];
+
+    if (source.length === 0) {
+      return [];
+    }
+
+    const emojis = [];
+    source.forEach((item) => {
+      for (let index = 0; index < item.count; index += 1) {
+        emojis.push(item.emoji);
+      }
+    });
+
+    if (emojis.length === 0) {
+      return [];
+    }
 
     const rng = createRng(Number(seedValue) || 1);
-    const totalCount = list.reduce((sum, item) => sum + Math.max(0, item.count ?? 0), 0);
-    const target = totalCount > 0
-      ? Math.min(MAX_CONFETTI, Math.max(MIN_CONFETTI, totalCount))
-      : MIN_CONFETTI;
+    for (let index = emojis.length - 1; index > 0; index -= 1) {
+      const swapWith = Math.floor(rng() * (index + 1));
+      [emojis[index], emojis[swapWith]] = [emojis[swapWith], emojis[index]];
+    }
 
-    const items = [];
-    for (let index = 0; index < target; index += 1) {
-      const selection = pickWeighted(list, rng) ?? { emoji: '✨', count: 1 };
+    return emojis.map((emoji, index) => {
       const left = rng() * 100;
       const delay = rng() * 0.5;
       const duration = 1.8 + rng() * 1.2;
@@ -61,9 +60,9 @@
       const startRotation = (rng() - 0.5) * 180;
       const size = 1.2 + rng() * 0.8;
 
-      items.push({
-        id: `${selection.emoji}-${index}-${Math.floor(rng() * 1_000_000)}`,
-        emoji: selection.emoji,
+      return {
+        id: `${emoji}-${index}-${Math.floor(rng() * 1_000_000)}`,
+        emoji,
         left,
         delay,
         duration,
@@ -73,10 +72,8 @@
         spin: `${spin.toFixed(1)}deg`,
         start: `${startRotation.toFixed(1)}deg`,
         size: size.toFixed(2),
-      });
-    }
-
-    return items;
+      };
+    });
   }
 
   $effect(() => {
