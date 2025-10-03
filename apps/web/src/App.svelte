@@ -5,6 +5,7 @@
   import ArtworkOverlay from './components/ArtworkOverlay.svelte';
   import ReactionConfetti from './components/ReactionConfetti.svelte';
   import SplashScreen from './components/SplashScreen.svelte';
+  import ToastHost from './components/ToastHost.svelte';
   import { fetchCountsForPieces, REACTION_EMOJIS } from './lib/reactions';
 
   const BASE_URL = import.meta.env.BASE_URL ?? '/';
@@ -784,6 +785,8 @@
     artwork={displayedArtwork}
     on:reacted={handleReaction}
   />
+
+  <ToastHost placement="bottom-center" />
 
   {#if showSplash}
     <SplashScreen

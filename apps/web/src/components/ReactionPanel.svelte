@@ -1,13 +1,13 @@
 <script>
   import { createEventDispatcher, onDestroy } from 'svelte';
   import { REACTION_EMOJIS, sendReaction } from '../lib/reactions';
+  import { pushToast } from '../lib/toasts';
 
   const { pieceId = '', active = false } = $props();
 
   const dispatch = createEventDispatcher();
   let isOpen = $state(false);
   let isSending = $state(false);
-  let errorMessage = $state('');
   let floating = $state([]);
   const timers = new Map();
 
@@ -15,7 +15,6 @@
     if (!active) {
       isOpen = false;
       floating = [];
-      errorMessage = '';
       timers.forEach((timer) => clearTimeout(timer));
       timers.clear();
     }
@@ -24,7 +23,6 @@
   function togglePanel() {
     if (!pieceId) return;
     isOpen = !isOpen;
-    errorMessage = '';
   }
 
   function makeId() {
@@ -47,16 +45,15 @@
   async function handleEmojiSelect(emoji) {
     if (!pieceId || isSending) return;
     isSending = true;
-    errorMessage = '';
     try {
+      isOpen = false;
       const result = await sendReaction(pieceId, emoji);
       spawnFloat(emoji);
-      isOpen = false;
       dispatch('reacted', { emoji, throttled: Boolean(result?.throttled) });
     } catch (error) {
       console.error('Failed to send reaction', error);
       const message = error?.payload?.error ?? error?.message ?? 'Unable to send reaction.';
-      errorMessage = message;
+      pushToast(message, { tone: 'error' });
     } finally {
       isSending = false;
     }
@@ -90,7 +87,6 @@
         type="button"
         onclick={() => {
           isOpen = false;
-          errorMessage = '';
         }}
       >
         Close
@@ -109,9 +105,6 @@
         </button>
       {/each}
     </div>
-    {#if errorMessage}
-      <p class="mt-3 text-xs text-red-200/80">{errorMessage}</p>
-    {/if}
   </div>
 
   <button
