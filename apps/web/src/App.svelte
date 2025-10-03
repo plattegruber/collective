@@ -1,10 +1,11 @@
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
   import LoadingOverlay from './components/LoadingOverlay.svelte';
-  import PermissionBanner from './components/PermissionBanner.svelte';
   import InstructionOverlay from './components/InstructionOverlay.svelte';
   import ArtworkOverlay from './components/ArtworkOverlay.svelte';
+  import ReactionConfetti from './components/ReactionConfetti.svelte';
   import SplashScreen from './components/SplashScreen.svelte';
+  import { fetchCountsForPieces, REACTION_EMOJIS } from './lib/reactions';
 
   const BASE_URL = import.meta.env.BASE_URL ?? '/';
   const CONFIDENCE_THRESHOLD = 0.7;
@@ -14,6 +15,7 @@
   const DECAY_FACTOR = 0.6;
   const SWITCH_MARGIN = 0.1;
   const MIN_BUFFER_CONFIDENCE = 0.05;
+  const REACTION_REFRESH_INTERVAL_MS = 10_000;
 
   const phrases = ['Point me toward the art.'];
 
@@ -78,6 +80,16 @@
   let splashStatus = $state('Preparing experience...');
   let cameraReady = $state(false);
 
+  let reactionCounts = $state({});
+  let countsRefreshTimer = null;
+  let hasStartedCountsLoop = false;
+
+  const CONFETTI_DURATION_MS = 3_200;
+  let confettiVisible = $state(false);
+  let confettiSeed = $state(0);
+  let confettiCounts = $state([]);
+  let confettiTimer = null;
+
   const getFrameCanvas = (() => {
     let canvasRef = null;
     let contextRef = null;
@@ -97,6 +109,92 @@
       return { canvas: canvasRef, context: contextRef };
     };
   })();
+
+  function normalizeReactionCounts(list) {
+    const map = new Map();
+    if (Array.isArray(list)) {
+      list.forEach((item) => {
+        if (item && typeof item.emoji === 'string') {
+          const count = Number(item.count ?? 0);
+          map.set(item.emoji, Number.isFinite(count) ? count : 0);
+        }
+      });
+    }
+    return REACTION_EMOJIS.map((emoji) => ({
+      emoji,
+      count: map.get(emoji) ?? 0,
+    }));
+  }
+
+  function getCountsForPiece(pieceId) {
+    if (!pieceId) return normalizeReactionCounts(null);
+    const entry = reactionCounts[pieceId];
+    return normalizeReactionCounts(entry);
+  }
+
+  async function refreshAllReactionCounts() {
+    if (!artContent || typeof artContent !== 'object') return;
+    const pieceIds = Object.keys(artContent ?? {});
+    if (pieceIds.length === 0) return;
+
+    try {
+      const countsMap = await fetchCountsForPieces(pieceIds, 4);
+      if (!countsMap || countsMap.size === 0) {
+        return;
+      }
+
+      const next = { ...reactionCounts };
+      countsMap.forEach((value, key) => {
+        next[key] = normalizeReactionCounts(value);
+      });
+      reactionCounts = next;
+    } catch (error) {
+      console.warn('Reaction counts refresh failed:', error);
+    }
+  }
+
+  function startCountsRefreshLoop() {
+    if (hasStartedCountsLoop) return;
+    hasStartedCountsLoop = true;
+    countsRefreshTimer = setInterval(() => {
+      refreshAllReactionCounts();
+    }, REACTION_REFRESH_INTERVAL_MS);
+  }
+
+  function handleReaction(event) {
+    const detail = event?.detail;
+    if (!detail || detail.throttled) return;
+    const emoji = detail.emoji;
+    if (typeof emoji !== 'string' || !emoji) return;
+
+    const pieceId = displayedArtwork?.id;
+    if (!pieceId) return;
+
+    const nextCounts = getCountsForPiece(pieceId).map((item) =>
+      item.emoji === emoji ? { ...item, count: item.count + 1 } : item,
+    );
+
+    reactionCounts = { ...reactionCounts, [pieceId]: nextCounts };
+
+    if (confettiVisible) {
+      confettiCounts = nextCounts;
+      confettiSeed = Date.now();
+    }
+  }
+
+  function triggerConfettiFor(pieceId) {
+    if (!pieceId) return;
+    confettiCounts = getCountsForPiece(pieceId);
+    confettiSeed = Date.now();
+    confettiVisible = true;
+    if (confettiTimer) {
+      clearTimeout(confettiTimer);
+    }
+    confettiTimer = setTimeout(() => {
+      confettiVisible = false;
+      confettiTimer = null;
+    }, CONFETTI_DURATION_MS);
+  }
 
   function setStatus(message) {
     loadingMessage = message;
@@ -137,6 +235,9 @@
       throw new Error('Artwork content response is not valid JSON.');
     }
     console.log('Loaded artwork content:', Object.keys(artContent).length, 'pieces');
+
+    await refreshAllReactionCounts();
+    startCountsRefreshLoop();
   }
 
   async function loadModel() {
@@ -238,6 +339,7 @@
     currentArtwork = artworkId;
     artworkVisible = true;
     hideOverlay();
+    triggerConfettiFor(artworkId);
   }
 
   function clearArtwork() {
@@ -245,6 +347,11 @@
     artworkVisible = false;
     currentArtwork = null;
     displayedArtwork = { ...EMPTY_ARTWORK };
+    confettiVisible = false;
+    if (confettiTimer) {
+      clearTimeout(confettiTimer);
+      confettiTimer = null;
+    }
     showInstructionOverlay();
     pickNewPhrase();
   }
@@ -300,13 +407,13 @@
         break;
       case 'prompt':
       case 'unknown':
-        permissionMessage = 'Gallery Guide needs a live camera view to overlay each piece. Tap Enable Camera to continue.';
+        permissionMessage = '';
         break;
       case 'unsupported':
         permissionMessage = 'This browser cannot share the camera. Try opening the page in Safari or Chrome.';
         break;
       case 'error':
-        permissionMessage = 'We could not open the camera. Make sure it isn\'t in use and try again.';
+        permissionMessage = 'We could not open the camera. Make sure it isn\'t already in use, then try again.';
         break;
       default:
         permissionMessage = 'Camera access is required to continue.';
@@ -411,6 +518,7 @@
     lastCameraError = '';
     setStatus('Ready');
     cameraReady = true;
+    splashReady = true;
 
     if (!detectionStarted) {
       detectionStarted = true;
@@ -438,6 +546,7 @@
     updatePermissionMessage(permissionState);
     showPermissionPrompt = true;
     setStatus(lastCameraError || 'Camera access blocked.');
+    splashReady = false;
   }
 
   async function processFrame() {
@@ -559,12 +668,11 @@
       if (permissionState === 'granted') {
         await requestCameraAccess(true);
         setStatus('Enjoy!');
+        splashReady = true;
       } else {
         showPermissionPrompt = true;
-        setStatus('Allow camera access to begin');
+        splashReady = false;
       }
-
-      splashReady = true;
 
       if (!artworkLoaded || !modelLoaded) {
         console.warn('Application initialized with missing resources.', {
@@ -580,8 +688,7 @@
       if (permissionState !== 'granted') {
         showPermissionPrompt = true;
       }
-
-      splashReady = true;
+      splashReady = permissionState === 'granted';
     }
   }
 
@@ -615,6 +722,7 @@
       displayedArtwork = { ...TEST_ARTWORK };
       currentArtwork = TEST_ARTWORK.id;
       artworkVisible = true;
+      triggerConfettiFor(TEST_ARTWORK.id);
       splashReady = true;
       splashSubtitle = DEFAULT_SPLASH_SUBTITLE;
       splashStatus = 'Enjoy!';
@@ -639,6 +747,12 @@
     if (phraseTimeout) {
       clearTimeout(phraseTimeout);
     }
+    if (countsRefreshTimer) {
+      clearInterval(countsRefreshTimer);
+    }
+    if (confettiTimer) {
+      clearTimeout(confettiTimer);
+    }
   });
 </script>
 
@@ -656,15 +770,6 @@
 
   <LoadingOverlay visible={showLoading && !showSplash} message={loadingMessage} />
 
-  <PermissionBanner
-    visible={showPermissionPrompt}
-    message={permissionMessage}
-    error={lastCameraError}
-    canRequest={canRequestPermission}
-    isRequesting={isRequestingCamera}
-    on:request={() => requestCameraAccess(false)}
-  />
-
   <InstructionOverlay
     visible={overlayVisible}
     phrase={phraseText}
@@ -672,15 +777,25 @@
     phraseOpacity={phraseOpacity}
   />
 
-  <ArtworkOverlay visible={artworkVisible} artwork={displayedArtwork} />
+  <ReactionConfetti active={confettiVisible} counts={confettiCounts} seed={confettiSeed} />
+
+  <ArtworkOverlay
+    visible={artworkVisible}
+    artwork={displayedArtwork}
+    on:reacted={handleReaction}
+  />
 
   {#if showSplash}
     <SplashScreen
-      subtitle={splashSubtitle}
       status={splashStatus}
       ready={splashReady}
       minDurationMs={2500}
       fadeMs={350}
+      awaitingPermission={showPermissionPrompt}
+      permissionMessage={lastCameraError || permissionMessage}
+      permissionCopy="We need camera access for this to work."
+      permissionDisabled={!canRequestPermission || isRequestingCamera}
+      on:cameraRequest={() => requestCameraAccess(false)}
       on:done={handleSplashDone}
     />
   {/if}

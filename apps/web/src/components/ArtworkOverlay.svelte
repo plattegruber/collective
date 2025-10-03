@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
   import ReactionPanel from './ReactionPanel.svelte';
 
   const DEFAULT_ARTWORK = {
@@ -11,6 +11,8 @@
   };
 
   const { visible = false, artwork = DEFAULT_ARTWORK } = $props();
+
+  const dispatch = createEventDispatcher();
 
   let panelMessage = $state('');
   let messageTimer = null;
@@ -61,11 +63,13 @@
         pieceId={artwork.id}
         active={visible && Boolean(artwork.id)}
         on:reacted={(event) => {
-          if (event?.detail?.throttled) {
+          const detail = event?.detail ?? {};
+          if (detail.throttled) {
             setPanelMessage('Already counted—thanks!');
           } else {
             setPanelMessage('Reaction sent!');
           }
+          dispatch('reacted', detail);
         }}
       />
       {#if panelMessage}
@@ -93,8 +97,8 @@
     background: rgba(15, 17, 26, 0.48);
     box-shadow: 0 28px 60px rgba(0, 0, 0, 0.32);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(16px) saturate(125%);
-    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    backdrop-filter: blur(14px) saturate(125%);
+    -webkit-backdrop-filter: blur(14px) saturate(125%);
     overflow: hidden;
   }
 
