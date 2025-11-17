@@ -29,7 +29,7 @@ The app is a **single-page application** with embedded JavaScript that uses ONNX
 - **`index.html`**: Complete application with embedded JavaScript - camera setup, ONNX model loading, detection loop, and UI overlays
 - **`public/models/detector/model.onnx`**: Trained ONNX model for artwork recognition
 - **`public/models/detector/labels.json`**: Maps model class IDs to artwork identifiers (e.g., `{"1": "2d:byrons_painting"}`)
-- **`public/data/art-content.v1.json`**: Artwork metadata including title, artist, year, materials, description
+- **`public/data/art-content.v2.json`**: Generated artwork metadata (via `npm run sync-art-data`) including title, artist, year, materials, description
 - **`public/model-manifest.json`**: Model versioning and path configuration
 - **`vite.config.js`**: Build configuration with base path `/collective/` and mobile-optimized dev server
 
@@ -62,7 +62,7 @@ processFrame() → decodeOutputs() → drawBoxes() → updateArtworkOverlay()
 **Adding New Artworks:**
 1. Train new model with additional artwork images
 2. Update `public/models/detector/labels.json` with new class mappings
-3. Add artwork metadata to `public/data/art-content.v1.json`
+3. Update the Google Sheet and run `npm run sync-art-data` to regenerate `public/data/art-content.v2.json`
 4. Update `public/model-manifest.json` with new model version/hash
 5. Deploy updated model and content files
 
@@ -71,7 +71,7 @@ processFrame() → decodeOutputs() → drawBoxes() → updateArtworkOverlay()
 // labels.json - maps model classes to artwork IDs
 {"1": "2d:byrons_painting", "2": "2d:horse_swing"}
 
-// art-content.v1.json - artwork metadata
+// art-content.v2.json - artwork metadata
 {
   "2d:byrons_painting": {
     "title": "Untitled",

@@ -226,7 +226,7 @@
   }
 
   async function loadArtworkContent() {
-    const response = await fetch(`${BASE_URL}data/art-content.v1.json`, { cache: 'no-store' });
+    const response = await fetch(`${BASE_URL}data/art-content.v2.json`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Failed to load artwork content (${response.status})`);
     }

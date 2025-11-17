@@ -273,6 +273,8 @@ def main():
     ap.add_argument('--img-size', type=int, default=640)
     ap.add_argument('--samples-per-piece', type=int, default=200)
     ap.add_argument('--seed', type=int, default=1337)
+    ap.add_argument('--metadata', type=Path, default=Path('apps/web/public/data/art-content.v2.json'),
+                    help='Path to the generated artwork metadata JSON (keeps assets + sheet in sync)')
     args = ap.parse_args()
 
     seed_everything(args.seed)
@@ -285,6 +287,30 @@ def main():
     pieces = gather_pieces(args.assets_dir)
     if not pieces:
         raise SystemExit(f"No images found under {args.assets_dir}/(2d|3d)/*")
+
+    if not args.metadata.exists():
+        raise SystemExit(f"Metadata file not found: {args.metadata}. Run npm run sync-art-data first.")
+
+    with open(args.metadata, 'r', encoding='utf-8') as f:
+        metadata = json.load(f)
+    if not isinstance(metadata, dict):
+        raise SystemExit(f"Metadata file is not an object: {args.metadata}")
+
+    piece_ids = set(pieces.keys())
+    metadata_ids = set(metadata.keys())
+
+    missing_metadata = sorted(piece_ids - metadata_ids)
+    missing_assets = sorted(metadata_ids - piece_ids)
+    if missing_metadata:
+        raise SystemExit(
+            "The following asset folders are missing metadata entries:\n"
+            + "\n".join(f"  - {pid}" for pid in missing_metadata)
+        )
+    if missing_assets:
+        raise SystemExit(
+            "The metadata lists pieces with no corresponding assets:\n"
+            + "\n".join(f"  - {pid}" for pid in missing_assets)
+        )
 
     # category mapping
     categories = []

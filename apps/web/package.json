@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "sync-art-data": "node scripts/sync-art-content.mjs",
+    "prebuild": "npm run sync-art-data",
     "dev": "vite",
     "build": "vite build",
     "postbuild": "node scripts/copy-404.mjs",

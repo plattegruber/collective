@@ -16,15 +16,20 @@ A camera-first web app that recognizes your artwork with an ONNX detector and su
 4. Visit `http://localhost:3000` (or the printed host) and grant camera access.
 
 ### Build & Preview
+- `npm run sync-art-data` – Fetches the canonical Google Sheet and regenerates `public/data/art-content.v2.json` (also runs automatically before `npm run build`).
 - `npm run build` – Outputs the static bundle to `apps/web/dist/` (GitHub Pages consumes this directory).
 - `npm run serve` – Serves the production build locally for smoke-testing.
+
+### Artwork Metadata
+- Edit the Google Sheet (linked in AGENTS.md) to change copy.
+- Run `npm run sync-art-data` to pull the sheet and emit `apps/web/public/data/art-content.v2.json`. Commit the generated file so other tooling (including ML scripts) stays in sync.
 
 ## Model Pipeline Overview
 1. **Synthesize dataset**
    ```bash
    python ml/make_dataset.py --out artifacts/datasets
    ```
-   The script reads labeled assets from `data/raw/` and writes COCO-style data to `artifacts/datasets/`.
+   The script reads labeled assets from `data/raw/` (validating against `apps/web/public/data/art-content.v2.json`) and writes COCO-style data to `artifacts/datasets/`.
 2. **Train detector**
    ```bash
    python ml/train.py --data artifacts/datasets --out artifacts/models/ssdlite320
@@ -44,4 +49,4 @@ A camera-first web app that recognizes your artwork with an ONNX detector and su
 ## Troubleshooting
 - **Camera blocked** – Ensure you are on HTTPS or `localhost`, and reset browser permissions.
 - **Model fails to load** – Confirm `apps/web/public/model-manifest.json` references a valid ONNX or TFJS export inside `apps/web/public/models/`.
-- **Blank detections** – Double-check the label keys in `art-content.*.json` match the detector labels generated during training.
+- **Blank detections** – Double-check the label keys in `art-content.v2.json` match the detector labels generated during training.
