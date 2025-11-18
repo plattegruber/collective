@@ -8,6 +8,7 @@ tqdm>=4.65.0
 # ONNX export
 onnx>=1.14.0
 onnxruntime>=1.16.0
+onnxscript>=0.1.0
 
 # Optional: TensorFlow.js export (may fail on some systems)
 # onnx-tf
