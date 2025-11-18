@@ -36,8 +36,8 @@ jobs:
       - name: Install Python deps (CPU wheels)
         run: |
           python -m pip install --upgrade pip
-          # Install PyTorch CPU version
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          # Install PyTorch CPU version (pin to 2.3 series for stable ONNX export)
+          pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cpu
           # Install requirements
           pip install -r ml/requirements.txt
           # Try to install TFJS deps, but don't fail if they're not available
