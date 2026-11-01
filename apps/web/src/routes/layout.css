@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
+
+@theme {
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+
+	--color-paper: oklch(97.5% 0.006 85);
+	--color-paper-deep: oklch(94.5% 0.01 85);
+	--color-card: oklch(99.4% 0.003 85);
+	--color-line: oklch(88% 0.012 80);
+	--color-ink: oklch(21% 0.015 60);
+	--color-ink-soft: oklch(42% 0.02 60);
+	--color-ink-mute: oklch(60% 0.02 60);
+
+	--color-accent: oklch(56% 0.15 42);
+	--color-accent-deep: oklch(46% 0.14 42);
+	--color-accent-soft: oklch(94% 0.04 50);
+	--color-accent-ink: oklch(99% 0.01 50);
+
+	--color-success: oklch(60% 0.14 150);
+	--color-success-soft: oklch(94% 0.05 150);
+	--color-danger: oklch(56% 0.19 25);
+	--color-danger-soft: oklch(94% 0.05 25);
+
+	--radius-card: 1.25rem;
+	--shadow-card: 0 1px 2px oklch(0% 0 0 / 0.04), 0 8px 24px -12px oklch(0% 0 0 / 0.12);
+	--shadow-lift: 0 2px 4px oklch(0% 0 0 / 0.05), 0 18px 40px -16px oklch(0% 0 0 / 0.2);
+}
+
+@layer base {
+	html {
+		scroll-behavior: smooth;
+	}
+	body {
+		font-feature-settings:
+			'cv11' 1,
+			'ss01' 1;
+	}
+	::selection {
+		background: var(--color-accent-soft);
+	}
+}
+
+@utility text-balance {
+	text-wrap: balance;
+}
+
+@utility focus-ring {
+	@apply ring-2 ring-accent/50 ring-offset-2 ring-offset-paper outline-none;
+}

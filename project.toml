@@ -1,7 +1,0 @@
-[build]
-include = [
-  "apps/web/dist/**/*"
-]
-
-[[build.buildpacks]]
-uri = "paketo-buildpacks/static-web-server"

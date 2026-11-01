@@ -1,19 +1,39 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-The web client lives in `apps/web/`: Svelte components plus entry script in `src/`, static files in `public/`, and the shell at `index.html`. Legacy MindAR experiments sit in `archive/mindar/`. Source imagery for dataset synthesis belongs in `data/raw/` (`assets/` and `backgrounds/`). Generated output stays in `artifacts/` for datasets, checkpoints, and packaged builds. Machine-learning scripts and requirements live in `ml/` and default to those data and artifact paths.
+## Layout
+`apps/web/` is the SvelteKit app (routes in `src/routes`, shared code in `src/lib`,
+server-only code in `src/lib/server`). `ml/` is the Python training package with a `src`
+layout and tests in `ml/tests`. Generated files (`drizzle/*.sql`, `worker-configuration.d.ts`,
+`static/ort/`) are produced by scripts; do not hand-edit them.
 
-## Build, Test, and Development Commands
-Install front-end dependencies with `npm install` inside `apps/web/`. Use `npm run dev` for the Vite server, `npm run build` to emit `apps/web/dist/`, and `npm run serve` to preview that bundle. For pipeline work, create a virtual environment, `pip install -r ml/requirements.txt`, and inspect options with `python ml/make_dataset.py --help`, `python ml/train.py --help`, and `python ml/export_tfjs.py --help`.
+## Commands
+Web: `npm run dev`, `npm run check`, `npm run lint`, `npm run test`, `npm run build` from the
+repo root or `apps/web`. Database: edit `src/lib/server/db/schema.ts`, then `npm run db:generate`
+and `npm run db:migrate`. Bindings: edit `wrangler.jsonc`, then `npm run cf:types`.
+ML: `cd ml && pytest && ruff check .`.
 
-## Coding Style & Naming Conventions
-Svelte components live in single-file `.svelte` modules with `<script>`, markup, and `<style>` blocks—use 2-space indentation and keep state localized. Extract reusable logic into `src/lib/` modules as needed and avoid manual DOM access when reactive state will do. Vanilla helpers stay as ES modules with `const`/`let` and semicolons. Python code follows PEP 8 with 4-space indentation and argparse-driven CLIs. Preserve the versioned asset naming pattern (`art-content.v#.json`, `model-manifest.json`, etc.) so clients bust caches safely.
+## Style
+TypeScript strict, Svelte 5 runes only (`$state`, `$derived`, `$props`, snippets), no legacy
+`export let` or stores in components. Imports use `#lib/...` with explicit `.js`/`.svelte`
+extensions (SvelteKit 3). Tailwind utility classes with the tokens from `src/routes/layout.css`;
+no ad-hoc hex colours. Prettier (tabs, single quotes, 100 cols) and ESLint are the source of
+truth; run `npm run format` before committing. Python follows ruff defaults with type hints and
+docstrings on public functions.
 
-## Testing Guidelines
-Run `npm run build` after major changes. When tweaking detection logic or overlays, use `npm run dev` and test on a desktop webcam plus one mobile device to confirm camera access and transitions. For ML edits, run `python ml/train.py --epochs 1 --data artifacts/datasets --out artifacts/models/debug` and ensure the exported ONNX loads with `onnxruntime.InferenceSession`.
+## Server rules
+Bindings come from `import { env } from 'cloudflare:workers'` and only inside
+`src/lib/server` or `+server.ts`/`+page.server.ts`. Every query that reads or mutates a
+collector's data must be scoped by `userId`. Public pages receive explicit allow-listed
+fields; prices, notes, seller and location never reach a public route. Validate form input
+with the Zod schemas in `src/lib/schemas` through `parseForm`.
 
-## Commit & Pull Request Guidelines
-Commits keep the imperative, Title Case summaries already in history (`Add detector overlay transition`, `Update manifest hashes`) and stay under 72 characters; add bodies only when needed. Pull requests should summarize intent, list manual verification, and flag work that requires new datasets, retraining, or CDN refreshes. Attach screenshots or recordings for UI changes.
+## Testing
+Pure modules (`src/lib/detector`, `src/lib/utils`, schema helpers) get Vitest unit tests next
+to the file (`*.test.ts`). Component tests use `*.svelte.test.ts` and run in Chromium. Before a
+PR: `npm run lint && npm run check && npm run test && npm run build`, and click through sign-in,
+add artwork, upload a photo, and the scanner on a phone when touching those areas.
 
-## Asset & Model Management
-Treat everything under `artifacts/` as reproducible output—clean it before commits unless a sample is intentionally tracked. Package web-ready detector assets through `apps/web/public/models/` via `ml/export_tfjs.py`. Store new capture assets in `data/raw/` using folder names that match detector labels so the CLI defaults keep working, and update manifests whenever you add or rename art IDs.
+## Commits and PRs
+Imperative, Title Case summaries under 72 characters (`Add artwork CSV export`). Describe
+manual verification in the PR body; attach screenshots for UI changes; call out schema
+migrations and anything that needs a Cloudflare resource or secret.

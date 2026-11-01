@@ -1,19 +1,32 @@
-# Node build artifacts
+# Dependencies
 node_modules/
-workers/dist/
-apps/web/node_modules/
-apps/web/dist/
 
-# Python cache
+# Build output and local Cloudflare state
+apps/web/.svelte-kit/
+apps/web/.wrangler/
+apps/web/static/ort/
+apps/web/worker-configuration.d.ts
+apps/web/vite.config.ts.timestamp-*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.py[cod]
-
-# ML + export temp dirs
-artifacts/
-.tmp_export_tfjs/
-
-# Virtual environments
-.env
 .venv/
 venv/
-ENV/
+*.egg-info/
+ml/.pytest_cache/
+ml/.ruff_cache/
+
+# ML workspaces and training output
+artifacts/
+ml/workspace/
+ml/artifacts/
+
+# OS
+.DS_Store
+Thumbs.db

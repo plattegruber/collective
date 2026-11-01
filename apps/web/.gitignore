@@ -1,0 +1,11 @@
+# Mirrors the relevant parts of the root .gitignore; ESLint reads this file for its ignore list.
+node_modules
+/.svelte-kit
+/.wrangler
+/static/ort
+/build
+worker-configuration.d.ts
+vite.config.ts.timestamp-*
+.env
+.env.*
+!.env.example

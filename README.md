@@ -1,52 +1,83 @@
-# AR Artwork Gallery
+# Collective
 
-A camera-first web app that recognizes your artwork with an ONNX detector and surfaces rich metadata overlays. The project now separates front-end sources, ML tooling, and generated artifacts so you can tell at a glance what is editable code versus build output.
+An inventory for the art you live with. Collectors sign in, add the pieces they own with
+photos and full provenance, keep track of value and location, share a curated public
+gallery, and let guests point a phone at any piece on the wall to see its story.
 
-## Repository Layout
-- `apps/web/` – Vite-powered Svelte app (entry HTML at `index.html`, Svelte components in `src/`, deployable assets in `public/`).
-- `ml/` – Dataset synthesis, training, and model-export scripts with a shared `requirements.txt`.
-- `data/raw/` – Source imagery for dataset generation (`assets/` for foregrounds, `backgrounds/` for augmentation backdrops).
-- `artifacts/` – Generated datasets, checkpoints, and other reproducible outputs.
-- `archive/mindar/` – Legacy MindAR-based prototype kept for reference.
+The phone scanner runs a small object detector **in the browser**, trained on the
+collector's own photos. Camera frames never leave the device.
 
-## Quick Start (Web Client)
-1. `cd apps/web`
-2. `npm install`
-3. `npm run dev`
-4. Visit `http://localhost:3000` (or the printed host) and grant camera access.
+## Repository layout
 
-### Build & Preview
-- `npm run sync-art-data` – Fetches the canonical Google Sheet and regenerates `public/data/art-content.v2.json` (also runs automatically before `npm run build`).
-- `npm run build` – Outputs the static bundle to `apps/web/dist/` (GitHub Pages consumes this directory).
-- `npm run serve` – Serves the production build locally for smoke-testing.
+| Path | What it is |
+| --- | --- |
+| `apps/web/` | The product: SvelteKit 3 + Svelte 5 + Tailwind 4, deployed as a Cloudflare Worker with D1 (database), R2 (photos and models) and KV (reactions, rate limits). |
+| `ml/` | `collective-ml`, a Python package that pulls a collection through the API, synthesises a training set, trains an SSDLite320-MobileNetV3 detector, exports ONNX and publishes it back. |
+| `data/raw/` | The original photos of the first collection, used only by the demo seed. |
+| `.github/workflows/` | `ci.yml` (PRs), `deploy.yml` (main → Cloudflare), `train-detector.yml` (manual training run). |
 
-### Artwork Metadata
-- Edit the Google Sheet (linked in AGENTS.md) to change copy.
-- Run `npm run sync-art-data` to pull the sheet and emit `apps/web/public/data/art-content.v2.json`. Commit the generated file so other tooling (including ML scripts) stays in sync.
+## Develop
 
-## Model Pipeline Overview
-1. **Synthesize dataset**
-   ```bash
-   python ml/make_dataset.py --out artifacts/datasets
-   ```
-   The script reads labeled assets from `data/raw/` (validating against `apps/web/public/data/art-content.v2.json`) and writes COCO-style data to `artifacts/datasets/`.
-2. **Train detector**
-   ```bash
-   python ml/train.py --data artifacts/datasets --out artifacts/models/ssdlite320
-   ```
-   Produces PyTorch checkpoints, ONNX exports, and label files in `artifacts/models/`.
-3. **Package for the web**
-   ```bash
-   python ml/export_tfjs.py --onnx artifacts/models/ssdlite320/best.onnx --labels artifacts/models/ssdlite320/labels.json
-   ```
-   Copies the ONNX graph and labels into `apps/web/public/models/` and refreshes `apps/web/public/model-manifest.json` so the site loads the latest assets.
+Requires Node 22.17+ and npm. The repo is an npm workspace; run everything from the root or inside `apps/web`.
 
-## Deployment Notes
-- GitHub Pages expects the built site at `/collective/`. The Vite config sets `base: '/collective/'`; adjust if you host elsewhere.
-- The Fly.io/Netlify `project.toml` now points at `apps/web/dist/`. Run `npm run build` before shipping.
-- Treat everything in `artifacts/` as disposable; regenerate instead of committing large binaries when possible.
+```bash
+npm install
+npm run dev                      # http://127.0.0.1:3000 with emulated D1/R2/KV
+```
 
-## Troubleshooting
-- **Camera blocked** – Ensure you are on HTTPS or `localhost`, and reset browser permissions.
-- **Model fails to load** – Confirm `apps/web/public/model-manifest.json` references a valid ONNX or TFJS export inside `apps/web/public/models/`.
-- **Blank detections** – Double-check the label keys in `art-content.v2.json` match the detector labels generated during training.
+First time only, create the local database:
+
+```bash
+cd apps/web
+npm run db:migrate               # applies drizzle/ migrations to the local D1
+```
+
+Optional: seed a demo account with the original seven pieces, their photos, and the legacy detector so the scanner works immediately.
+
+```bash
+npm run seed:demo -- --base http://127.0.0.1:3000 --email you@example.com --password 'choose-one'
+```
+
+### Everyday commands (`apps/web`)
+
+| Command | Purpose |
+| --- | --- |
+| `npm run check` | svelte-check (TypeScript) |
+| `npm run lint` / `npm run format` | Prettier + ESLint |
+| `npm run test` | Vitest. Pure logic runs in Node; `*.svelte.test.ts` run in headless Chromium (`npx playwright install chromium` once). |
+| `npm run db:generate` | Create a migration after editing `src/lib/server/db/schema.ts` |
+| `npm run db:migrate` | Apply migrations locally (`db:migrate:remote` for production) |
+| `npm run cf:types` | Regenerate `worker-configuration.d.ts` after editing `wrangler.jsonc` |
+| `npm run build` / `npm run preview` | Production build / preview with the Cloudflare adapter |
+| `node scripts/capture-marketing.mjs --base <url>` | Regenerate the landing-page screenshots from a seeded account |
+| `node scripts/scanner-smoke.mjs --base <url> --video <frames.mjpeg> --expect "<title>"` | Drive the scanner with a fake camera and assert a piece is recognized |
+
+## Deploy to Cloudflare
+
+One-time setup with [Wrangler](https://developers.cloudflare.com/workers/wrangler/):
+
+```bash
+cd apps/web
+npx wrangler login
+npx wrangler d1 create collective            # paste database_id into wrangler.jsonc
+npx wrangler r2 bucket create collective-media
+npx wrangler kv namespace create REACTIONS   # paste id into wrangler.jsonc
+npx wrangler secret put INVITE_CODE          # optional: makes sign-up invite-only
+```
+
+Set `vars.PUBLIC_ORIGIN` in `wrangler.jsonc` to the public URL, then either run
+`npm run db:migrate:remote && npm run deploy`, or push to `main` with the repository
+secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set and let `deploy.yml` do it.
+
+Add `?debug` to any scanner URL to see the strongest raw detection and the smoothed confidence while pointing the phone around.
+
+## Train a recognizer
+
+See [`ml/README.md`](ml/README.md). Short version: create an API token in **Settings → API tokens**, then
+
+```bash
+export COLLECTIVE_URL=https://your.domain COLLECTIVE_TOKEN=clv_…
+pip install -e './ml' && collective-ml run
+```
+
+or trigger **Actions → Train detector** with those two values stored as repository secrets.
