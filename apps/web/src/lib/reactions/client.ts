@@ -32,11 +32,11 @@ export async function sendReaction(
 		body: JSON.stringify({ emoji, visitor: visitorId(), website: '' })
 	});
 	const payload = (await response.json().catch(() => null)) as {
-		error?: string;
+		message?: string;
 		throttled?: boolean;
 		counts?: ReactionCount[];
 	} | null;
 	if (!response.ok)
-		throw new Error(payload?.error ?? `Could not send reaction (${response.status}).`);
+		throw new Error(payload?.message ?? `Could not send reaction (${response.status}).`);
 	return { ok: true, throttled: Boolean(payload?.throttled), counts: payload?.counts };
 }

@@ -79,7 +79,7 @@ export async function uploadArtworkImage(
 		xhr.onload = () => {
 			try {
 				const payload = JSON.parse(xhr.responseText) as {
-					error?: string;
+					message?: string;
 					id?: string;
 					url?: string;
 					thumbUrl?: string;
@@ -93,7 +93,7 @@ export async function uploadArtworkImage(
 				) {
 					resolve({ id: payload.id, url: payload.url, thumbUrl: payload.thumbUrl });
 				} else {
-					reject(new Error(payload.error ?? `Upload failed (${xhr.status}).`));
+					reject(new Error(payload.message ?? `Upload failed (${xhr.status}).`));
 				}
 			} catch {
 				reject(new Error(`Upload failed (${xhr.status}).`));

@@ -41,6 +41,8 @@
 	let detector: Detector | null = null;
 	let frameHandle = 0;
 	let running = false;
+	/** Bumped by stop(); a start() that outlives its generation abandons its work. */
+	let generation = 0;
 	const tracker = new DetectionTracker();
 
 	const current = $derived(currentId ? (artworks[currentId] ?? null) : null);
@@ -54,22 +56,38 @@
 	let promptTimer: ReturnType<typeof setInterval> | undefined;
 
 	async function start() {
+		const gen = ++generation;
+		const cancelled = () => gen !== generation;
 		errorMessage = '';
 		phase = 'loading';
 		try {
 			status = 'Opening camera';
-			stream = await openRearCamera();
+			const opened = await openRearCamera();
+			if (cancelled()) {
+				stopStream(opened);
+				return;
+			}
+			stream = opened;
 			if (!video) throw new Error('Video element missing.');
 			video.srcObject = stream;
 			await video.play();
+			if (cancelled()) return;
 
-			detector ??= await loadDetector(manifest, (stage) => (status = stage));
+			if (!detector) {
+				const loaded = await loadDetector(manifest, (stage) => (status = stage));
+				if (cancelled()) {
+					void loaded.dispose();
+					return;
+				}
+				detector = loaded;
+			}
 			tracker.reset();
 			phase = 'scanning';
 			running = true;
 			promptTimer = setInterval(() => (promptIndex = (promptIndex + 1) % prompts.length), 4000);
 			void loop();
 		} catch (cause) {
+			if (cancelled()) return;
 			stopStream(stream);
 			stream = null;
 			if (cause instanceof CameraError && cause.kind === 'denied') {
@@ -111,6 +129,7 @@
 	}
 
 	function stop() {
+		generation += 1;
 		running = false;
 		cancelAnimationFrame(frameHandle);
 		clearInterval(promptTimer);

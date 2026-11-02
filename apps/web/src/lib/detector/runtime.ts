@@ -16,6 +16,11 @@ function loadOrt(): Promise<typeof Ort> {
 		(module: typeof Ort) => {
 			module.env.wasm.wasmPaths = ORT_BASE;
 			return module;
+		},
+		(cause: unknown) => {
+			// Forget the failed attempt so a retry (e.g. after the network comes back) can succeed.
+			ortModule = undefined;
+			throw cause;
 		}
 	);
 	return ortModule;

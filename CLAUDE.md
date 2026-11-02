@@ -24,7 +24,7 @@ There is no test suite for UI flows; verification is `npm run lint && npm run ch
 
 - `npm run dev` – Vite dev server with emulated bindings (D1/R2/KV persist under `.wrangler/state`). Pick the port from the console; 3000 may be taken.
 - `npm run db:migrate` – apply `drizzle/*.sql` to local D1. Required once before the app works. `db:generate` after schema edits.
-- `npm run cf:types` – regenerate `worker-configuration.d.ts` after editing `wrangler.jsonc`.
+- `npm run cf:types` – regenerate `worker-configuration.d.ts` after editing `wrangler.jsonc` (`check` does this too; the script strips Wrangler's `mainModule` line, which would otherwise pull the whole build output into svelte-check). Changing the D1/KV ids in `wrangler.jsonc` also changes which local `.wrangler/state` database the dev server opens, so re-run `db:migrate` and `seed:demo` or copy the old SQLite file.
 - `npm run test -- --project server` – Node unit tests only (CI runs this). The `client` project needs `npx playwright install chromium`.
 - `npm run seed:demo -- --base http://127.0.0.1:<port>` – creates a demo user with the legacy pieces, photos and model via HTTP.
 - `cd ml && pytest && ruff check .` – ML tests need no torch.
@@ -36,7 +36,7 @@ There is no test suite for UI flows; verification is `npm run lint && npm run ch
 - `$lib` is `#lib` and imports need extensions: `#lib/server/db/index.js`, `#lib/components/Button.svelte`.
 - Cloudflare bindings: `import { env } from 'cloudflare:workers'` (typed by `worker-configuration.d.ts`), not `platform.env`.
 - `$app/env` (not `$app/environment`), `Response.json()` instead of `json()`, `error(404, 'msg')` with a string, `redirect(303, url)`.
-- `onDestroy`/`onMount` run during SSR in Svelte 5; browser-only lifecycle (camera, ORT, `requestAnimationFrame`) must live in `$effect`.
+- `onDestroy` runs during SSR in Svelte 5 (`onMount` does not); browser-only lifecycle (camera, ORT, `requestAnimationFrame`, fetches) lives in `$effect`, which never runs on the server.
 - ESLint rule `svelte/no-navigation-without-resolve` is configured with `ignoreLinks: true`; `goto()` still needs `resolve()`.
 
 ## Architecture notes

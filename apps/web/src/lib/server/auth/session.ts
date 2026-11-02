@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { dev } from '$app/env';
 import { db, schema } from '#lib/server/db/index.js';
 import { bytesToBase64Url, sha256Hex } from '#lib/utils/encoding.js';
@@ -82,6 +82,16 @@ export async function invalidateSession(sessionId: string): Promise<void> {
 
 export async function invalidateUserSessions(userId: string): Promise<void> {
 	await db().delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+}
+
+/** Signs out every other device while keeping the session that made the request. */
+export async function invalidateOtherSessions(
+	userId: string,
+	keepSessionId: string
+): Promise<void> {
+	await db()
+		.delete(schema.sessions)
+		.where(and(eq(schema.sessions.userId, userId), ne(schema.sessions.id, keepSessionId)));
 }
 
 export function setSessionCookie(cookies: Cookies, token: string, expiresAt: Date): void {

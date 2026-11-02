@@ -9,7 +9,16 @@ import type { RequestHandler } from './$types';
 const MAX_MODEL_BYTES = 64 * 1024 * 1024;
 
 const labelsSchema = z.record(z.string().regex(/^\d+$/), z.string().min(1));
-const metricsSchema = z.record(z.string(), z.unknown()).optional();
+const metricsSchema = z.record(z.string(), z.unknown());
+
+function parseJsonField(value: FormDataEntryValue | null, name: string): unknown {
+	if (value === null || value === '') return undefined;
+	try {
+		return JSON.parse(String(value));
+	} catch {
+		error(400, `${name} must be valid JSON.`);
+	}
+}
 
 export const GET: RequestHandler = async ({ request, url }) => {
 	const auth = await authenticateApiToken(request);
@@ -40,7 +49,9 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	if (!(model instanceof File) || model.size === 0) error(400, 'Missing model file.');
 	if (model.size > MAX_MODEL_BYTES) error(413, 'Model exceeds 64 MB.');
 
-	const labelsResult = labelsSchema.safeParse(JSON.parse(String(formData.get('labels') ?? '{}')));
+	const labelsResult = labelsSchema.safeParse(
+		parseJsonField(formData.get('labels'), 'labels') ?? {}
+	);
 	if (!labelsResult.success) error(400, 'labels must map class indices to artwork ids.');
 
 	const artworkIds = new Set(
@@ -59,8 +70,10 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	if (!Number.isInteger(inputSize) || inputSize < 64 || inputSize > 1280)
 		error(400, 'inputSize must be between 64 and 1280.');
 
-	const metricsRaw = formData.get('metrics');
-	const metrics = metricsRaw ? metricsSchema.parse(JSON.parse(String(metricsRaw))) : undefined;
+	const metricsRaw = parseJsonField(formData.get('metrics'), 'metrics');
+	const metricsResult = metricsRaw === undefined ? undefined : metricsSchema.safeParse(metricsRaw);
+	if (metricsResult && !metricsResult.success) error(400, 'metrics must be a JSON object.');
+	const metrics = metricsResult?.data;
 
 	const published = await publishModel(auth.userId, {
 		onnx: await model.arrayBuffer(),

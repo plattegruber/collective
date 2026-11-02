@@ -4,6 +4,7 @@ import { db, schema } from '#lib/server/db/index.js';
 import {
 	clearSessionCookie,
 	hashPassword,
+	invalidateOtherSessions,
 	invalidateUserSessions,
 	verifyPassword
 } from '#lib/server/auth/index.js';
@@ -91,8 +92,8 @@ export const actions: Actions = {
 			.update(schema.users)
 			.set({ passwordHash: await hashPassword(parsed.data.password), updatedAt: new Date() })
 			.where(eq(schema.users.id, user.id));
-		// Sign out every other device; the current session is recreated by the caller's cookie on next request.
-		await invalidateUserSessions(user.id);
+		if (locals.sessionId) await invalidateOtherSessions(user.id, locals.sessionId);
+		else await invalidateUserSessions(user.id);
 		return { passwordChanged: true };
 	},
 

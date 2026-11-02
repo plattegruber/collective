@@ -23,9 +23,9 @@ function publicView(artwork: ArtworkWithImages) {
 	};
 }
 
-export const load: PageServerLoad = async ({ parent, params }) => {
+export const load: PageServerLoad = async ({ parent, params, locals }) => {
 	const { gallery } = await parent();
-	const artwork = await getPublicArtwork(params.artworkId);
+	const artwork = await getPublicArtwork(params.artworkId, locals.user?.id ?? null);
 	if (!artwork || artwork.userId !== gallery.ownerId) error(404, 'Artwork not found');
 	return { artwork: publicView(artwork) };
 };

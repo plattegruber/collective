@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { db, schema } from './db/index.js';
 import { newId } from '#lib/utils/id.js';
 
@@ -25,7 +25,7 @@ export async function addArtworkImage(
 	const artwork = await db().query.artworks.findFirst({
 		where: and(eq(schema.artworks.id, artworkId), eq(schema.artworks.userId, userId)),
 		columns: { id: true, primaryImageId: true },
-		with: { images: { columns: { id: true, position: true } } }
+		with: { images: { columns: { id: true } } }
 	});
 	if (!artwork) throw new ImageError('not_found', 'Artwork not found.');
 	if (artwork.images.length >= MAX_IMAGES_PER_ARTWORK) {
@@ -47,7 +47,8 @@ export async function addArtworkImage(
 		})
 	]);
 
-	const position = artwork.images.reduce((max, image) => Math.max(max, image.position + 1), 0);
+	// Computed in the INSERT itself so concurrent uploads never share a position.
+	const position = sql<number>`(select coalesce(max(${schema.artworkImages.position}) + 1, 0) from ${schema.artworkImages} where ${schema.artworkImages.artworkId} = ${artworkId})`;
 	const [image] = await db()
 		.insert(schema.artworkImages)
 		.values({

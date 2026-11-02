@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { fetchReactionCounts, sendReaction } from '#lib/reactions/client.js';
 	import {
 		REACTION_EMOJIS,
@@ -15,10 +14,14 @@
 	let floating = $state<{ id: number; emoji: string }[]>([]);
 	let nextId = 0;
 
-	onMount(async () => {
-		counts = (await fetchReactionCounts(artworkId)).length
-			? await fetchReactionCounts(artworkId)
-			: counts;
+	$effect(() => {
+		let stale = false;
+		void fetchReactionCounts(artworkId).then((fetched) => {
+			if (!stale && fetched.length > 0) counts = fetched;
+		});
+		return () => {
+			stale = true;
+		};
 	});
 
 	async function reactWith(emoji: ReactionEmoji) {

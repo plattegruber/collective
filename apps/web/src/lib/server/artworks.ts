@@ -112,18 +112,25 @@ export async function getArtwork(userId: string, id: string): Promise<ArtworkWit
 }
 
 /** Artwork visible on a public gallery; checks the owner's public flag too. */
+/**
+ * A piece as a gallery visitor may see it: public, in a public gallery. The owner (`viewerId`)
+ * can always open their own pieces so a private gallery can be previewed before publishing.
+ */
 export async function getPublicArtwork(
-	id: string
+	id: string,
+	viewerId: string | null = null
 ): Promise<(ArtworkWithImages & { owner: schema.User }) | null> {
 	const row = await db().query.artworks.findFirst({
-		where: and(eq(schema.artworks.id, id), eq(schema.artworks.isPublic, true)),
+		where: eq(schema.artworks.id, id),
 		with: {
 			owner: true,
 			images: { orderBy: asc(schema.artworkImages.position) },
 			artworkTags: { with: { tag: true } }
 		}
 	});
-	if (!row || !row.owner.galleryPublic) return null;
+	if (!row) return null;
+	const isOwner = viewerId !== null && row.userId === viewerId;
+	if (!isOwner && (!row.isPublic || !row.owner.galleryPublic)) return null;
 	const { artworkTags, ...artwork } = row;
 	return { ...artwork, tags: artworkTags.map((at) => at.tag) };
 }

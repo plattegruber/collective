@@ -8,8 +8,11 @@ export function requireUser(event: Pick<RequestEvent, 'locals' | 'url'>): Sessio
 	redirect(303, `/login?next=${encodeURIComponent(next)}`);
 }
 
-/** Only allow redirecting back to same-origin app paths after login. */
+/**
+ * Only allow redirecting back to same-origin app paths after login. Rejects scheme-relative
+ * forms (`//host`, and `/\\host`, which browsers normalise to `//host`).
+ */
 export function safeNextPath(value: string | null | undefined, fallback = '/app'): string {
-	if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback;
+	if (!value || !/^\/(?![/\\])/.test(value)) return fallback;
 	return value;
 }

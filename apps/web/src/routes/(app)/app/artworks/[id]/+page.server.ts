@@ -5,7 +5,8 @@ import { db, schema } from '#lib/server/db/index.js';
 import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent, params, url }) => {
+export const load: PageServerLoad = async ({ parent, params, url, depends }) => {
+	depends('app:artwork');
 	const { user } = await parent();
 	const artwork = await getArtwork(user.id, params.id);
 	if (!artwork) error(404, 'Artwork not found');

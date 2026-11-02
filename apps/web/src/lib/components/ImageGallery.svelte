@@ -39,7 +39,8 @@
 	async function handleFiles(files: FileList | File[]) {
 		const list = Array.from(files).filter((file) => file.type.startsWith('image/'));
 		if (list.length === 0) return;
-		await Promise.all(list.map(uploadOne));
+		// One at a time so positions and the per-artwork limit are checked against fresh state.
+		for (const file of list) await uploadOne(file);
 		onchange?.();
 	}
 
