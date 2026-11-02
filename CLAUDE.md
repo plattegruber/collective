@@ -53,5 +53,5 @@ There is no test suite for UI flows; verification is `npm run lint && npm run ch
 ## Deployment gotchas
 
 - `wrangler.jsonc` ships with placeholder `database_id` / KV `id`; replace them after `wrangler d1 create collective` and `wrangler kv namespace create REACTIONS`. `PUBLIC_ORIGIN` must be the public URL.
-- `deploy.yml` runs lint, check, server tests, build, remote migrations, then `wrangler deploy`; needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- `deploy.yml` runs lint, check, server tests, build, remote migrations, then `wrangler deploy`; needs repo secrets `CF_API_TOKEN` and `CF_ACCOUNT_ID` (token scopes: Workers Scripts, D1, R2, Workers KV Storage).
 - `seed/legacy-model/model.onnx` (15 MB) is the first-generation detector for the demo seed; new models come from `collective-ml` and live in R2, never in git.

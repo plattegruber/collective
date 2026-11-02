@@ -67,7 +67,7 @@ npx wrangler secret put INVITE_CODE          # optional: makes sign-up invite-on
 
 Set `vars.PUBLIC_ORIGIN` in `wrangler.jsonc` to the public URL, then either run
 `npm run db:migrate:remote && npm run deploy`, or push to `main` with the repository
-secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set and let `deploy.yml` do it.
+secrets `CF_API_TOKEN` and `CF_ACCOUNT_ID` set and let `deploy.yml` do it.
 
 Add `?debug` to any scanner URL to see the strongest raw detection and the smoothed confidence while pointing the phone around.
 

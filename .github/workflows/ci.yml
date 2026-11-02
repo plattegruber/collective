@@ -22,3 +22,23 @@ jobs:
           npm run check
           npm run test -- --project server
           npm run build
+
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ml/pyproject.toml
+      - name: Install collective-ml (no torch)
+        working-directory: ml
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Lint and test
+        working-directory: ml
+        run: |
+          ruff check .
+          pytest -q
