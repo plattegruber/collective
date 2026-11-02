@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (default: today's date)
+        description: "Release version (default: today's date)"
         default: ""
         required: false
       epochs:
