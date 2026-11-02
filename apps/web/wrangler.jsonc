@@ -12,7 +12,7 @@
 		{
 			"binding": "DB",
 			"database_name": "collective",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "644e4230-3448-4236-9012-749e6c5ee8d5",
 			"migrations_dir": "drizzle"
 		}
 	],
@@ -25,7 +25,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "REACTIONS",
-			"id": "0000000000000000000000000000000000"
+			"id": "e50d313048334a58ae764a5439b515a5"
 		}
 	],
 	"vars": {
