@@ -80,7 +80,7 @@ def crop_to_artwork(detector: OnnxDetector, image: Image.Image, threshold: float
     box = locate_artwork(detector, image, threshold)
     if box is None:
         return image
-    return image.crop(tuple(int(round(v)) for v in box))
+    return image.crop(tuple(round(v) for v in box))
 
 
 def build_prototypes(
