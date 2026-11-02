@@ -4,17 +4,20 @@ An inventory for the art you live with. Collectors sign in, add the pieces they 
 photos and full provenance, keep track of value and location, share a curated public
 gallery, and let guests point a phone at any piece on the wall to see its story.
 
-The phone scanner runs a small object detector **in the browser**, trained on the
-collector's own photos. Camera frames never leave the device.
+The phone scanner runs two small models **in the browser**: a class-agnostic artwork
+detector and a vision foundation model (built with DINOv3) that turns each piece into a
+compact fingerprint. Photos are indexed the moment they are uploaded, so there is nothing
+to train, and the scanner keeps learning the views it sees on the collector's walls.
+Camera frames never leave the device.
 
 ## Repository layout
 
 | Path | What it is |
 | --- | --- |
 | `apps/web/` | The product: SvelteKit 3 + Svelte 5 + Tailwind 4, deployed as a Cloudflare Worker with D1 (database), R2 (photos and models) and KV (reactions, rate limits). |
-| `ml/` | `collective-ml`, a Python package that pulls a collection through the API, synthesises a training set, trains an SSDLite320-MobileNetV3 detector, exports ONNX and publishes it back. |
+| `ml/` | `collective-ml`, a Python package that builds the global recognizer release (detector + embedder), evaluates it end to end against a real collection, and publishes it to the app. |
 | `data/raw/` | The original photos of the first collection, used only by the demo seed. |
-| `.github/workflows/` | `ci.yml` (PRs), `deploy.yml` (main → Cloudflare), `train-detector.yml` (manual training run). |
+| `.github/workflows/` | `ci.yml` (PRs), `deploy.yml` (main → Cloudflare), `build-recognizer.yml` (manual release build). |
 
 ## Develop
 
@@ -71,13 +74,22 @@ secrets `CF_API_TOKEN` and `CF_ACCOUNT_ID` set and let `deploy.yml` do it.
 
 Add `?debug` to any scanner URL to see the strongest raw detection and the smoothed confidence while pointing the phone around.
 
-## Train a recognizer
+## Ship a recognizer release
 
-See [`ml/README.md`](ml/README.md). Short version: create an API token in **Settings → API tokens**, then
+See [`ml/README.md`](ml/README.md). A release is two global ONNX models plus a manifest;
+collectors never train anything. Short version:
 
 ```bash
-export COLLECTIVE_URL=https://your.domain COLLECTIVE_TOKEN=clv_…
-pip install -e './ml' && collective-ml run
+pip install -e './ml[train]'
+collective-ml run                          # fetch open data, build both models, assemble ml/workspace/release
+export COLLECTIVE_RELEASE_TOKEN=…          # the app's RELEASE_TOKEN secret
+collective-ml publish ml/workspace/release
 ```
 
-or trigger **Actions → Train detector** with those two values stored as repository secrets.
+To evaluate a release against your own collection first, create an API token in
+**Settings → API tokens**, `collective-ml pull`, then `collective-ml evaluate`; the report
+suggests the match thresholds that keep false accepts under 2%, and `collective-ml release`
+writes them into the manifest. **Actions → Build recognizer** runs the same build on CI.
+
+Locally, `npm run seed:demo -- --release-dir ../../ml/workspace/release` publishes a release
+into the dev database and indexes the demo photos through the real browser pipeline.

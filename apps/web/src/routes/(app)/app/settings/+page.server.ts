@@ -9,7 +9,7 @@ import {
 	verifyPassword
 } from '#lib/server/auth/index.js';
 import { createApiToken, listApiTokens, revokeApiToken } from '#lib/server/apiTokens.js';
-import { activateModel, deleteModel, listModels } from '#lib/server/models.js';
+import { activeRelease, indexStatus, releaseManifest } from '#lib/server/recognition.js';
 import { deleteUserAndData, findUserByHandle } from '#lib/server/users.js';
 import { formFailure, parseForm } from '#lib/server/forms.js';
 import {
@@ -24,23 +24,15 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { user } = await parent();
-	const [tokens, models, stats] = await Promise.all([
+	const [tokens, stats, release] = await Promise.all([
 		listApiTokens(user.id),
-		listModels(user.id),
-		collectionStats(user.id)
+		collectionStats(user.id),
+		activeRelease()
 	]);
-	return {
-		tokens,
-		models: models.map((model) => ({
-			id: model.id,
-			createdAt: model.createdAt,
-			isActive: model.isActive,
-			bytes: model.bytes,
-			labelCount: Object.keys(model.labels).length,
-			metrics: model.metrics
-		})),
-		stats
-	};
+	const recognizer = release
+		? { manifest: releaseManifest(release), status: await indexStatus(user.id, release.id) }
+		: null;
+	return { tokens, stats, recognizer };
 };
 
 export const actions: Actions = {
@@ -114,17 +106,6 @@ export const actions: Actions = {
 		return ok ? { tokenRevoked: true } : fail(404, { message: 'Token not found.' });
 	},
 
-	activateModel: async ({ request, locals }) => {
-		const id = String((await request.formData()).get('id') ?? '');
-		const ok = await activateModel(locals.user!.id, id);
-		return ok ? { modelActivated: true } : fail(404, { message: 'Model not found.' });
-	},
-
-	deleteModel: async ({ request, locals }) => {
-		const id = String((await request.formData()).get('id') ?? '');
-		const ok = await deleteModel(locals.user!.id, id);
-		return ok ? { modelDeleted: true } : fail(404, { message: 'Model not found.' });
-	},
 	deleteAccount: async ({ request, locals, cookies }) => {
 		const formData = await request.formData();
 		const parsed = parseForm(formData, deleteAccountSchema);

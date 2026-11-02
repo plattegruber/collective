@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Check, Copy, KeyRound, ScanLine, Trash2 } from 'lucide-svelte';
-	import { Badge, Button, Card, Field, Input, Textarea } from '#lib/components/index.js';
+	import { Check, Copy, KeyRound, ScanLine } from 'lucide-svelte';
+	import { Button, Card, Field, Input, Textarea } from '#lib/components/index.js';
+	import { formatLoadStage } from '#lib/recognition/loader.js';
 	import { formatRelative } from '#lib/utils/format.js';
+	import { rebuildIndex, type RebuildProgress } from '#lib/recognition/teach.js';
 	import { toasts } from '#lib/toasts.svelte.js';
 	import type { PageProps } from './$types';
 
@@ -25,8 +28,6 @@
 		if ('passwordChanged' in form)
 			toasts.push('Password changed. Other devices were signed out.', 'success');
 		if ('tokenRevoked' in form) toasts.push('Token revoked.');
-		if ('modelActivated' in form) toasts.push('Model activated.', 'success');
-		if ('modelDeleted' in form) toasts.push('Model deleted.');
 		if ('message' in form && form.message) toasts.push(form.message, 'error');
 	});
 
@@ -37,7 +38,27 @@
 		setTimeout(() => (copied = false), 2000);
 	}
 
-	const formatBytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	let rebuild = $state<RebuildProgress | null>(null);
+	let rebuilding = $state(false);
+
+	async function runRebuild() {
+		rebuilding = true;
+		try {
+			const result = await rebuildIndex((progress) => (rebuild = progress));
+			toasts.push(
+				result.failed > 0
+					? `Indexed ${result.done} photos; ${result.failed} failed.`
+					: `Indexed ${result.done} photo${result.done === 1 ? '' : 's'}.`,
+				result.failed > 0 ? 'error' : 'success'
+			);
+			await invalidateAll();
+		} catch (cause) {
+			toasts.push(cause instanceof Error ? cause.message : 'Could not rebuild the index.', 'error');
+		} finally {
+			rebuilding = false;
+			rebuild = null;
+		}
+	}
 </script>
 
 <svelte:head><title>Settings · Collective</title></svelte:head>
@@ -155,54 +176,49 @@
 			<div>
 				<h2 class="font-display text-xl font-medium">Recognizer</h2>
 				<p class="mt-1 text-sm text-ink-soft">
-					A small on-device detector trained on your photos. Training runs with the <code
-						class="rounded bg-paper-deep px-1 text-xs">collective-ml</code
-					> tool using an API token below; it publishes the model here when done.
+					Runs entirely on your device. Photos are indexed in your browser the moment you upload
+					them, and the scanner keeps learning the views it sees on your walls. Nothing to train.
 				</p>
 			</div>
 		</div>
-		{#if data.models.length === 0}
+		{#if !data.recognizer}
 			<p class="rounded-xl bg-paper-deep/60 px-4 py-3 text-sm text-ink-soft">
-				No model yet. {data.stats.withImages} of {data.stats.total} pieces have photos to train from.
+				No recognizer release has been published for this installation yet.
 			</p>
 		{:else}
-			<ul class="divide-y divide-line">
-				{#each data.models as model (model.id)}
-					<li class="flex flex-wrap items-center gap-3 py-3">
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-medium">
-								Trained {formatRelative(model.createdAt)}
-								{#if model.isActive}<Badge tone="success">Active</Badge>{/if}
-							</p>
-							<p class="text-xs text-ink-mute">
-								{model.labelCount} pieces · {formatBytes(
-									model.bytes
-								)}{#if model.metrics && typeof model.metrics.map50 === 'number'}
-									· mAP@50 {(model.metrics.map50 * 100).toFixed(0)}%{/if}
-							</p>
-						</div>
-						{#if !model.isActive}
-							<form method="POST" action="?/activateModel" use:enhance>
-								<input type="hidden" name="id" value={model.id} /><Button
-									type="submit"
-									size="sm"
-									variant="secondary">Use this</Button
-								>
-							</form>
-						{/if}
-						<form method="POST" action="?/deleteModel" use:enhance>
-							<input type="hidden" name="id" value={model.id} /><Button
-								type="submit"
-								size="sm"
-								variant="ghost"
-								class="text-danger hover:bg-danger-soft hover:text-danger"
-								><Trash2 class="size-4" aria-hidden="true" /><span class="sr-only">Delete</span
-								></Button
-							>
-						</form>
-					</li>
-				{/each}
-			</ul>
+			{@const status = data.recognizer.status}
+			<dl class="grid gap-3 text-sm sm:grid-cols-3">
+				<div class="rounded-xl bg-paper-deep/60 px-4 py-3">
+					<dt class="text-xs text-ink-mute">Release</dt>
+					<dd class="mt-0.5 font-medium">{data.recognizer.manifest.version}</dd>
+				</div>
+				<div class="rounded-xl bg-paper-deep/60 px-4 py-3">
+					<dt class="text-xs text-ink-mute">Photos indexed</dt>
+					<dd class="mt-0.5 font-medium">{status.indexed} of {status.images}</dd>
+				</div>
+				<div class="rounded-xl bg-paper-deep/60 px-4 py-3">
+					<dt class="text-xs text-ink-mute">Views learned while scanning</dt>
+					<dd class="mt-0.5 font-medium">{status.memories}</dd>
+				</div>
+			</dl>
+			{#if status.pending.length > 0}
+				<div class="flex flex-wrap items-center gap-3">
+					<Button type="button" variant="secondary" onclick={runRebuild} disabled={rebuilding}>
+						{rebuilding
+							? 'Indexing…'
+							: `Index ${status.pending.length} photo${status.pending.length === 1 ? '' : 's'}`}
+					</Button>
+					{#if rebuild}
+						<p class="text-sm text-ink-soft" aria-live="polite">
+							{#if rebuild.stage && rebuild.done === 0}{formatLoadStage(
+									rebuild.stage
+								)}…{:else}{rebuild.done}
+								of {rebuild.total} done{/if}
+						</p>
+					{/if}
+				</div>
+			{/if}
+			<p class="text-xs text-ink-mute">{data.recognizer.manifest.config.attribution}</p>
 		{/if}
 	</Card>
 
@@ -212,8 +228,8 @@
 			<div>
 				<h2 class="font-display text-xl font-medium">API tokens</h2>
 				<p class="mt-1 text-sm text-ink-soft">
-					Let the training pipeline read your photos and publish models. Treat tokens like
-					passwords.
+					Let tools such as <code class="rounded bg-paper-deep px-1 text-xs">collective-ml</code> read
+					your collection through the API. Treat tokens like passwords.
 				</p>
 			</div>
 		</div>

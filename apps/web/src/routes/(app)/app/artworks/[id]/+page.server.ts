@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { deleteArtwork, getArtwork } from '#lib/server/artworks.js';
 import { deleteArtworkMedia, removeArtworkImage, setPrimaryImage } from '#lib/server/images.js';
 import { db, schema } from '#lib/server/db/index.js';
+import { activeRelease, listPrototypes, releaseManifest } from '#lib/server/recognition.js';
 import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,7 +11,19 @@ export const load: PageServerLoad = async ({ parent, params, url, depends }) => 
 	const { user } = await parent();
 	const artwork = await getArtwork(user.id, params.id);
 	if (!artwork) error(404, 'Artwork not found');
-	return { artwork, created: url.searchParams.has('created') };
+	const release = await activeRelease();
+	const prototypes = release ? await listPrototypes(release.id, [artwork.id]) : [];
+	return {
+		artwork,
+		created: url.searchParams.has('created'),
+		recognizer: release
+			? {
+					manifest: releaseManifest(release),
+					indexedImageIds: prototypes.flatMap((p) => (p.imageId ? [p.imageId] : [])),
+					memories: prototypes.filter((p) => p.source === 'scan').length
+				}
+			: null
+	};
 };
 
 export const actions: Actions = {

@@ -1,26 +1,26 @@
 <script lang="ts">
-	import { Camera, Cpu, CloudUpload, ScanLine } from 'lucide-svelte';
+	import { Camera, Fingerprint, ScanLine, Sparkles } from 'lucide-svelte';
 
 	const steps = [
 		{
 			icon: Camera,
 			title: 'Photograph your pieces',
-			body: 'Add a few straight-on photos of each work as you catalog it. Phone photos are fine.'
+			body: 'Add a photo of each work as you catalog it. One phone picture is enough to start.'
 		},
 		{
-			icon: Cpu,
-			title: 'Train a tiny detector',
-			body: 'Run the open-source trainer on your laptop or in CI. It builds a synthetic dataset from your photos and trains a mobile-sized model.'
+			icon: Fingerprint,
+			title: 'It learns the piece on the spot',
+			body: 'Your browser finds the artwork in the photo and turns it into a compact visual fingerprint. Nothing to train, nothing to wait for.'
 		},
 		{
-			icon: CloudUpload,
-			title: 'Publish to your account',
-			body: 'The trainer uploads the model with an API token. It lives with your collection, versioned, and you can roll back.'
+			icon: Sparkles,
+			title: 'It keeps getting better',
+			body: 'Every time the scanner recognizes a piece on your wall it remembers that view, so your real lighting and angles count too.'
 		},
 		{
 			icon: ScanLine,
 			title: 'Point a phone at a wall',
-			body: 'The model runs entirely in the browser. Guests see the story and react; no app install, no frames leave the device.'
+			body: 'Two small models run entirely in the browser: one spots artworks, one tells yours apart. Guests see the story and react; no app install, no frames leave the device.'
 		}
 	];
 </script>
@@ -35,11 +35,12 @@
 				id="how-title"
 				class="mt-3 font-display text-3xl font-medium tracking-tight text-balance sm:text-4xl"
 			>
-				Your photos become a model that only knows your art.
+				Your photos are all it needs to know your art.
 			</h2>
 			<p class="mt-4 text-base leading-7 text-ink-soft">
-				No cloud vision API, no sending images of your home to a third party. The recognizer is a
-				small on-device network trained on the pictures you already took.
+				No cloud vision API, no sending images of your home to a third party, and no training step.
+				A general artwork detector and a vision foundation model (built with DINOv3) run on the
+				phone and compare what they see with fingerprints of your own photos.
 			</p>
 		</div>
 		<ol class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

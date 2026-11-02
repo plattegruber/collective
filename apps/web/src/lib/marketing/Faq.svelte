@@ -6,7 +6,7 @@
 		},
 		{
 			q: 'Does the scanner upload video from my camera?',
-			a: 'No. The detector runs in the browser on the phone. Camera frames are processed locally and discarded; nothing is recorded or sent anywhere.'
+			a: 'No. Both models run in the browser on the phone. Camera frames are processed locally and discarded; nothing is recorded or sent anywhere. The only thing that can leave the phone is a numeric fingerprint of a piece you own, when you let the scanner remember a view.'
 		},
 		{
 			q: 'Where are my photos stored?',
@@ -14,7 +14,7 @@
 		},
 		{
 			q: 'Can I get my data out?',
-			a: 'Yes. Your collection is exportable at any time, and the training pipeline uses the same open API with a token you create and can revoke.'
+			a: 'Yes. Your collection is exportable as CSV at any time, and the same open API your tools can use is available with a token you create and can revoke.'
 		},
 		{
 			q: 'How much does it cost?',
@@ -22,7 +22,7 @@
 		},
 		{
 			q: 'Do I need to train a model to use it?',
-			a: 'No. The inventory works on its own. Recognition is an optional feature you can set up whenever you have a few photos per piece.'
+			a: 'No. Recognition works from the first photo you upload; the piece is indexed in your browser right away. Adding more photos and scanning your walls only make it sharper.'
 		}
 	];
 </script>

@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageOps
 
-from collective_ml.labels import is_image_file
+from collective_ml.files import is_image_file
 
 
 def _wall_colour(rng: np.random.Generator) -> tuple[int, int, int]:

@@ -9,7 +9,9 @@
 
 <Scanner
 	manifest={data.manifest}
+	index={data.index}
 	artworks={data.artworks}
 	backHref={`/g/${data.gallery.handle}`}
 	title={data.gallery.title}
+	canTeach={data.canTeach}
 />

@@ -1,4 +1,4 @@
-"""HTTP client for the Collective ML endpoints."""
+"""HTTP client for the collector-facing ML endpoints (collection listing and photos)."""
 
 from __future__ import annotations
 
@@ -123,19 +123,8 @@ class Collection:
         return tuple(sorted((a for a in self.artworks if a.images), key=lambda a: a.id))
 
 
-@dataclass(frozen=True)
-class PublishedModel:
-    """Manifest returned after a successful publish."""
-
-    id: str
-    url: str
-    sha256: str
-    input_size: int
-    labels: dict[str, str]
-
-
 class CollectiveClient:
-    """Thin wrapper over the three ML endpoints. Pass `transport` to stub it in tests."""
+    """Thin wrapper over the collection endpoints. Pass `transport` to stub it in tests."""
 
     def __init__(self, settings: ApiSettings, transport: httpx.BaseTransport | None = None) -> None:
         self._settings = settings
@@ -179,30 +168,6 @@ class CollectiveClient:
                 handle.write(chunk)
         tmp.replace(destination)
         return True
-
-    def publish_model(
-        self,
-        onnx_path: Path,
-        labels: dict[str, str],
-        input_size: int,
-        metrics: dict[str, Any] | None = None,
-    ) -> PublishedModel:
-        """Upload a model and make it the collector's active recognizer."""
-        data = {"labels": json.dumps(labels), "inputSize": str(input_size)}
-        if metrics:
-            data["metrics"] = json.dumps(metrics)
-        with onnx_path.open("rb") as handle:
-            files = {"model": (onnx_path.name, handle, "application/octet-stream")}
-            response = self._client.post("/api/ml/models", data=data, files=files)
-        _raise_for_status(response)
-        payload = response.json()
-        return PublishedModel(
-            id=str(payload["id"]),
-            url=str(payload["url"]),
-            sha256=str(payload["sha256"]),
-            input_size=int(payload["inputSize"]),
-            labels={str(k): str(v) for k, v in payload["labels"].items()},
-        )
 
 
 class ApiError(RuntimeError):

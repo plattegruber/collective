@@ -97,20 +97,28 @@
 				<ScanLine class="size-5" aria-hidden="true" />
 				<h2 class="font-display text-xl font-medium text-ink">Point-and-know</h2>
 			</div>
-			{#if data.model}
+			{#if data.recognizer && data.stats.withImages > 0}
 				<p class="text-sm text-ink-soft">
-					Your recognizer knows {pluralize(data.model.labelCount, 'piece')}. Open the scanner on
-					your phone and point it at a wall.
+					{#if data.recognizer.pending > 0}
+						Your recognizer knows {pluralize(data.recognizer.indexed, 'photo')}; {pluralize(
+							data.recognizer.pending,
+							'photo'
+						)} will be indexed the next time you open the scanner.
+					{:else}
+						Your recognizer knows every photographed piece. Open the scanner on your phone and point
+						it at a wall.
+					{/if}
 				</p>
 				<div><Button href="/app/scan" variant="secondary">Open scanner</Button></div>
+			{:else if data.recognizer}
+				<p class="text-sm text-ink-soft">
+					Add a photo to any piece and the scanner recognizes it on the wall, no training needed.
+				</p>
+				<div><Button href="/app/artworks" variant="secondary">Add photos</Button></div>
 			{:else}
 				<p class="text-sm text-ink-soft">
-					Train a recognizer from your photos and guests can point a phone at any piece to see its
-					story. Needs at least one photo per piece.
+					The recognizer is not available on this installation yet.
 				</p>
-				<div>
-					<Button href="/app/settings#recognizer" variant="secondary">Set up recognition</Button>
-				</div>
 			{/if}
 		</Card>
 		<Card class="flex flex-col gap-3">

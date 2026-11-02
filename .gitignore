@@ -30,3 +30,4 @@ ml/artifacts/
 # OS
 .DS_Store
 Thumbs.db
+apps/web/.dev.vars

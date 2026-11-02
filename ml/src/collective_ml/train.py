@@ -1,4 +1,4 @@
-"""Fine-tune SSDLite320-MobileNetV3 on the synthetic dataset."""
+"""Fine-tune SSDLite320-MobileNetV3 as a class-agnostic artwork detector on composites."""
 
 from __future__ import annotations
 

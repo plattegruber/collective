@@ -1,5 +1,6 @@
 import { relations, sql } from 'drizzle-orm';
 import {
+	blob,
 	index,
 	integer,
 	primaryKey,
@@ -66,8 +67,14 @@ export const apiTokens = sqliteTable(
 );
 
 import { ARTWORK_STATUSES, DIMENSION_UNITS } from '#lib/domain/artwork.js';
+import {
+	PROTOTYPE_SOURCES,
+	type NormalizedBox,
+	type RecognizerConfig
+} from '#lib/domain/recognition.js';
 
 export { ARTWORK_STATUSES, DIMENSION_UNITS } from '#lib/domain/artwork.js';
+export { PROTOTYPE_SOURCES } from '#lib/domain/recognition.js';
 export type { ArtworkStatus, DimensionUnit } from '#lib/domain/artwork.js';
 
 export const artworks = sqliteTable(
@@ -160,43 +167,89 @@ export const artworkTags = sqliteTable(
 	(t) => [primaryKey({ columns: [t.artworkId, t.tagId] })]
 );
 
-export const detectorModels = sqliteTable(
-	'detector_models',
+/** A versioned pair of global on-device models: the artwork detector and the embedder. */
+export const recognizerReleases = sqliteTable('recognizer_releases', {
+	id: text('id').primaryKey(),
+	/** Human-readable version, e.g. "2026.11.02-1". Unique. */
+	version: text('version').notNull().unique(),
+	/** R2 keys under models/{id}/… */
+	detectorKey: text('detector_key').notNull(),
+	detectorSha256: text('detector_sha256').notNull(),
+	detectorBytes: integer('detector_bytes').notNull(),
+	detectorInputSize: integer('detector_input_size').notNull(),
+	embedderKey: text('embedder_key').notNull(),
+	embedderSha256: text('embedder_sha256').notNull(),
+	embedderBytes: integer('embedder_bytes').notNull(),
+	embedderInputSize: integer('embedder_input_size').notNull(),
+	/** Length of the vectors the embedder produces after pooling. */
+	embedderDim: integer('embedder_dim').notNull(),
+	/** Normalisation, pooling and thresholds the browser runtime needs; see RecognizerConfig. */
+	config: text('config', { mode: 'json' }).$type<RecognizerConfig>().notNull(),
+	/** Evaluation numbers and provenance, free-form. */
+	metrics: text('metrics', { mode: 'json' }).$type<Record<string, unknown>>(),
+	notes: text('notes'),
+	/** Exactly one release is active at a time. */
+	isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
+	createdAt: createdAt()
+});
+
+/**
+ * What the recognizer compares a live crop against. Photo prototypes are computed in the
+ * browser right after an upload; scan prototypes are "memories" captured while scanning.
+ */
+export const artworkPrototypes = sqliteTable(
+	'artwork_prototypes',
 	{
 		id: text('id').primaryKey(),
-		userId: text('user_id')
+		artworkId: text('artwork_id')
 			.notNull()
-			.references(() => users.id, { onDelete: 'cascade' }),
-		/** R2 key of the ONNX graph. */
-		modelKey: text('model_key').notNull(),
-		/** JSON object mapping class index (as string) to artwork id. */
-		labels: text('labels', { mode: 'json' }).$type<Record<string, string>>().notNull(),
-		sha256: text('sha256').notNull(),
-		bytes: integer('bytes').notNull(),
-		inputSize: integer('input_size').notNull().default(320),
-		/** Free-form training metrics (mAP, epochs, dataset size…). */
-		metrics: text('metrics', { mode: 'json' }).$type<Record<string, unknown>>(),
-		/** Only one model per user is active at a time. */
-		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+			.references(() => artworks.id, { onDelete: 'cascade' }),
+		/** Set for photo prototypes; removed with the photo. */
+		imageId: text('image_id').references(() => artworkImages.id, { onDelete: 'cascade' }),
+		source: text('source', { enum: PROTOTYPE_SOURCES }).notNull(),
+		/** The release whose embedder produced this vector. */
+		releaseId: text('release_id')
+			.notNull()
+			.references(() => recognizerReleases.id, { onDelete: 'cascade' }),
+		/** Little-endian float32 vector of `embedderDim` values. */
+		embedding: blob('embedding', { mode: 'buffer' }).notNull(),
+		/** Where the artwork was found in the source image, normalised 0..1. */
+		box: text('box', { mode: 'json' }).$type<NormalizedBox>(),
 		createdAt: createdAt()
 	},
-	(t) => [index('detector_models_user_idx').on(t.userId)]
+	(t) => [
+		index('artwork_prototypes_artwork_idx').on(t.artworkId),
+		index('artwork_prototypes_image_idx').on(t.imageId)
+	]
 );
 
 export const usersRelations = relations(users, ({ many }) => ({
 	artworks: many(artworks),
-	tags: many(tags),
-	detectorModels: many(detectorModels)
+	tags: many(tags)
 }));
 
 export const artworksRelations = relations(artworks, ({ one, many }) => ({
 	owner: one(users, { fields: [artworks.userId], references: [users.id] }),
 	images: many(artworkImages),
-	artworkTags: many(artworkTags)
+	artworkTags: many(artworkTags),
+	prototypes: many(artworkPrototypes)
 }));
 
-export const artworkImagesRelations = relations(artworkImages, ({ one }) => ({
-	artwork: one(artworks, { fields: [artworkImages.artworkId], references: [artworks.id] })
+export const artworkImagesRelations = relations(artworkImages, ({ one, many }) => ({
+	artwork: one(artworks, { fields: [artworkImages.artworkId], references: [artworks.id] }),
+	prototypes: many(artworkPrototypes)
+}));
+
+export const artworkPrototypesRelations = relations(artworkPrototypes, ({ one }) => ({
+	artwork: one(artworks, { fields: [artworkPrototypes.artworkId], references: [artworks.id] }),
+	image: one(artworkImages, {
+		fields: [artworkPrototypes.imageId],
+		references: [artworkImages.id]
+	}),
+	release: one(recognizerReleases, {
+		fields: [artworkPrototypes.releaseId],
+		references: [recognizerReleases.id]
+	})
 }));
 
 export const tagsRelations = relations(tags, ({ many }) => ({
@@ -213,4 +266,5 @@ export type Artwork = typeof artworks.$inferSelect;
 export type NewArtwork = typeof artworks.$inferInsert;
 export type ArtworkImage = typeof artworkImages.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
-export type DetectorModel = typeof detectorModels.$inferSelect;
+export type RecognizerRelease = typeof recognizerReleases.$inferSelect;
+export type ArtworkPrototype = typeof artworkPrototypes.$inferSelect;

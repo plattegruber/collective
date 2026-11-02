@@ -15,13 +15,3 @@ export function toScannerContent(artworks: ArtworkListItem[]): Record<string, Sc
 	}
 	return content;
 }
-
-/** Keeps only labels that point at artworks the viewer may see. */
-export function restrictLabels(
-	labels: Record<string, string>,
-	allowed: Set<string>
-): Record<string, string> {
-	return Object.fromEntries(
-		Object.entries(labels).filter(([, artworkId]) => allowed.has(artworkId))
-	);
-}

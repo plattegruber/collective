@@ -1,0 +1,7 @@
+# A cross-origin-isolated page may only start workers whose own responses carry the
+# embedder policy, and the recognizer runtime spawns its thread pool from these files.
+/ort/*
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: cross-origin
+  Cache-Control: public, max-age=31536000, immutable

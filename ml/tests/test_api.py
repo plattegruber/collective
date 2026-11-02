@@ -77,37 +77,6 @@ def test_pull_downloads_once_and_skips_existing(tmp_path: Path):
     assert json.loads((tmp_path / "collection.json").read_text())["userId"] == "u1"
 
 
-def test_publish_sends_multipart(tmp_path: Path):
-    onnx = tmp_path / "model.onnx"
-    onnx.write_bytes(b"onnx")
-    captured = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured["content_type"] = request.headers["content-type"]
-        captured["body"] = request.read()
-        return httpx.Response(
-            201,
-            json={
-                "id": "m1",
-                "url": "https://collective.test/media/x",
-                "sha256": "abc",
-                "inputSize": 320,
-                "labels": {"1": "art-b"},
-            },
-        )
-
-    with make_client(handler) as client:
-        published = client.publish_model(onnx, {"1": "art-b"}, 320, {"map50": 0.9})
-
-    assert captured["content_type"].startswith("multipart/form-data")
-    body = captured["body"]
-    assert b'name="model"; filename="model.onnx"' in body
-    assert b'name="labels"' in body and b'{"1": "art-b"}' in body
-    assert b'name="inputSize"' in body and b"320" in body
-    assert b'name="metrics"' in body
-    assert published.id == "m1" and published.labels == {"1": "art-b"}
-
-
 def test_errors_surface_server_message():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"message": "Invalid or missing API token."})

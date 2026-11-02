@@ -9,9 +9,67 @@
 	import { byline, formatDate } from '#lib/utils/format.js';
 	import { formatMoney } from '#lib/utils/money.js';
 	import { toasts } from '#lib/toasts.svelte.js';
+	import { prepareImage, uploadArtworkImage } from '#lib/images/prepare.js';
+	import { formatLoadStage, loadRecognizer } from '#lib/recognition/loader.js';
+	import { loadImage, teachPhoto } from '#lib/recognition/teach.js';
+	import { captureToFile, clearCapture, peekCapture } from '#lib/scanner/capture.js';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	let teachStatus = $state('');
+	let teachingCount = $state(0);
+	const pendingImages = $derived(
+		data.recognizer
+			? data.artwork.images.filter((image) => !data.recognizer!.indexedImageIds.includes(image.id))
+			: []
+	);
+
+	/** Index one photo in the browser: find the piece, embed it, store the prototype. */
+	async function teach(imageId: string, url: string) {
+		if (!data.recognizer) return;
+		teachingCount += 1;
+		try {
+			const models = await loadRecognizer(
+				data.recognizer.manifest,
+				(stage) => (teachStatus = formatLoadStage(stage))
+			);
+			teachStatus = 'Learning this photo';
+			await teachPhoto(models, data.artwork.id, imageId, await loadImage(url));
+		} catch (cause) {
+			toasts.push(cause instanceof Error ? cause.message : 'Could not index the photo.', 'error');
+		} finally {
+			teachingCount -= 1;
+			if (teachingCount === 0) {
+				teachStatus = '';
+				void invalidate('app:artwork');
+			}
+		}
+	}
+
+	async function teachPending() {
+		for (const image of pendingImages) await teach(image.id, `/media/${image.thumbKey}`);
+	}
+
+	/** A piece captured by the scanner becomes this artwork's first photo. */
+	async function attachCapture() {
+		const capture = peekCapture();
+		if (!capture) return;
+		clearCapture();
+		try {
+			const prepared = await prepareImage(await captureToFile(capture));
+			const stored = await uploadArtworkImage(data.artwork.id, prepared);
+			toasts.push('Photo from the scanner attached.', 'success');
+			await invalidate('app:artwork');
+			await teach(stored.id, stored.thumbUrl);
+		} catch (cause) {
+			toasts.push(cause instanceof Error ? cause.message : 'Could not attach the photo.', 'error');
+		}
+	}
+
+	$effect(() => {
+		if (data.created) void attachCapture();
+	});
 
 	const artwork = $derived(data.artwork);
 	const dims = $derived(formatDimensions(artwork, artwork.dimensionUnit));
@@ -104,6 +162,7 @@
 			images={artwork.images}
 			primaryImageId={artwork.primaryImageId}
 			onchange={() => invalidate('app:artwork')}
+			onuploaded={(image) => teach(image.id, image.thumbUrl)}
 		/>
 	</section>
 
@@ -146,14 +205,37 @@
 				<ScanLine class="size-4 text-accent-deep" aria-hidden="true" />
 				<h2 class="text-sm font-medium">Recognition</h2>
 			</div>
-			<p class="text-sm text-ink-soft">
-				{#if artwork.images.length === 0}
-					Add at least one straight-on photo so the recognizer can learn this piece.
-				{:else}
-					{artwork.images.length === 1 ? 'One photo' : `${artwork.images.length} photos`} available for
-					training. Retrain from Settings after adding pieces.
+			{#if !data.recognizer}
+				<p class="text-sm text-ink-soft">
+					The recognizer is not available on this installation yet.
+				</p>
+			{:else if artwork.images.length === 0}
+				<p class="text-sm text-ink-soft">
+					Add a photo and the scanner knows this piece straight away. Nothing to train.
+				</p>
+			{:else}
+				<p class="text-sm text-ink-soft">
+					{#if teachStatus}
+						{teachStatus}…
+					{:else if pendingImages.length === 0}
+						Known from {artwork.images.length === 1
+							? 'its photo'
+							: `all ${artwork.images.length} photos`}{#if data.recognizer.memories > 0}
+							and {data.recognizer.memories} view{data.recognizer.memories === 1 ? '' : 's'} learned while
+							scanning{/if}.
+					{:else}
+						{pendingImages.length} photo{pendingImages.length === 1 ? '' : 's'} not indexed yet.
+					{/if}
+				</p>
+				{#if pendingImages.length > 0 && !teachStatus}
+					<div>
+						<Button type="button" size="sm" variant="secondary" onclick={teachPending}
+							>Index now</Button
+						>
+					</div>
 				{/if}
-			</p>
+				<p class="text-xs text-ink-mute">{data.recognizer.manifest.config.attribution}</p>
+			{/if}
 		</Card>
 
 		<div class="rounded-card border border-danger/20 p-4">

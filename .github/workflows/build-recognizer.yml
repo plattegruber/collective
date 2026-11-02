@@ -1,28 +1,28 @@
-name: Train detector
+name: Build recognizer
 
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: Release version (default: today's date)
+        default: ""
+        required: false
       epochs:
-        description: Training epochs
-        default: "12"
-        required: true
-      samples_per_piece:
-        description: Synthetic samples per artwork
-        default: "160"
+        description: Detector training epochs
+        default: "16"
         required: true
       publish:
-        description: Publish the model to the app when done
+        description: Publish the release to the app when done
         type: boolean
-        default: true
+        default: false
 
 jobs:
-  train:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     env:
       COLLECTIVE_URL: ${{ secrets.COLLECTIVE_URL }}
-      COLLECTIVE_TOKEN: ${{ secrets.COLLECTIVE_TOKEN }}
+      COLLECTIVE_RELEASE_TOKEN: ${{ secrets.COLLECTIVE_RELEASE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,24 +36,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ./ml
+          pip install -e './ml[train]'
 
-      - name: Train and export
+      - name: Build the release
         run: |
           collective-ml run \
             --workspace ml/workspace \
             --epochs "${{ inputs.epochs }}" \
-            --samples-per-piece "${{ inputs.samples_per_piece }}" \
             --workers 2 \
-            ${{ inputs.publish && '' || '--no-publish' }}
+            ${{ inputs.version != '' && format('--release-version "{0}"', inputs.version) || '' }} \
+            ${{ inputs.publish && '--publish' || '' }}
 
-      - name: Upload model artifacts
+      - name: Upload the release
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: detector-model
+          name: recognizer-release
           path: |
-            ml/workspace/*/model/model.onnx
-            ml/workspace/*/model/labels.json
-            ml/workspace/*/model/metrics.json
+            ml/workspace/release/
+            ml/workspace/detector/metrics.json
+            ml/workspace/eval/report.json
           retention-days: 30

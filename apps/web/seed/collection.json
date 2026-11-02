@@ -1,6 +1,5 @@
 [
 	{
-		"legacyLabel": "2d:byrons_painting",
 		"photosDir": "data/raw/assets/2d/byrons_painting",
 		"title": "Untitled",
 		"artist": "Byron Anway",
@@ -10,7 +9,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:horse_swing",
 		"photosDir": "data/raw/assets/2d/horse_swing",
 		"title": "Untitled",
 		"artist": "Jewelya Coffey",
@@ -20,7 +18,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:opals_departure",
 		"photosDir": "data/raw/assets/2d/opals_departure",
 		"title": "Opal's Departure",
 		"artist": "Amy Cutler",
@@ -30,7 +27,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:andrea",
 		"photosDir": "data/raw/assets/2d/andrea",
 		"title": "Untitled",
 		"artist": "Andrea Gruber",
@@ -40,7 +36,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:fransisco_suoto_commissioned",
 		"photosDir": "data/raw/assets/2d/fransisco_suoto_commissioned",
 		"title": "Untitled",
 		"artist": "Francisco Souto",
@@ -50,7 +45,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:church_ceiling",
 		"photosDir": "data/raw/assets/2d/church_ceiling",
 		"title": "Untitled",
 		"artist": "Andrea Gruber",
@@ -60,7 +54,6 @@
 		"isPublic": true
 	},
 	{
-		"legacyLabel": "2d:memory_surface",
 		"photosDir": "data/raw/assets/2d/memory_surface",
 		"title": "Memory Surface",
 		"artist": "Francisco Souto",

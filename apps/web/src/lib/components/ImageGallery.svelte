@@ -11,9 +11,11 @@
 		images: ArtworkImage[];
 		primaryImageId: string | null;
 		onchange?: () => void;
+		/** Fires once per successful upload, before `onchange`, with the stored image's urls. */
+		onuploaded?: (image: { id: string; url: string; thumbUrl: string }) => void;
 	};
 
-	let { artworkId, images, primaryImageId, onchange }: Props = $props();
+	let { artworkId, images, primaryImageId, onchange, onuploaded }: Props = $props();
 
 	interface Pending {
 		id: number;
@@ -57,8 +59,11 @@
 		};
 		try {
 			const prepared = await prepareImage(file);
-			await uploadArtworkImage(artworkId, prepared, (fraction) => update({ progress: fraction }));
+			const stored = await uploadArtworkImage(artworkId, prepared, (fraction) =>
+				update({ progress: fraction })
+			);
 			pending = pending.filter((p) => p.id !== item.id);
+			onuploaded?.(stored);
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : 'Upload failed.';
 			update({ error: message });

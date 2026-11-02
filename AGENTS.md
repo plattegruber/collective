@@ -2,7 +2,7 @@
 
 ## Layout
 `apps/web/` is the SvelteKit app (routes in `src/routes`, shared code in `src/lib`,
-server-only code in `src/lib/server`). `ml/` is the Python training package with a `src`
+server-only code in `src/lib/server`). `ml/` is the Python recognizer-build package with a `src`
 layout and tests in `ml/tests`. Generated files (`drizzle/*.sql`, `worker-configuration.d.ts`,
 `static/ort/`) are produced by scripts; do not hand-edit them.
 
@@ -28,7 +28,7 @@ fields; prices, notes, seller and location never reach a public route. Validate 
 with the Zod schemas in `src/lib/schemas` through `parseForm`.
 
 ## Testing
-Pure modules (`src/lib/detector`, `src/lib/utils`, schema helpers) get Vitest unit tests next
+Pure modules (`src/lib/recognition`, `src/lib/utils`, schema helpers) get Vitest unit tests next
 to the file (`*.test.ts`). Component tests use `*.svelte.test.ts` and run in Chromium. Before a
 PR: `npm run lint && npm run check && npm run test && npm run build`, and click through sign-in,
 add artwork, upload a photo, and the scanner on a phone when touching those areas.

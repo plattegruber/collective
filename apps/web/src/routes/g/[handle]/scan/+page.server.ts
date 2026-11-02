@@ -1,20 +1,29 @@
 import { error } from '@sveltejs/kit';
 import { listPublicArtworks } from '#lib/server/artworks.js';
-import { activeModel, modelManifest } from '#lib/server/models.js';
-import { restrictLabels, toScannerContent } from '#lib/scanner/content.js';
+import {
+	activeRelease,
+	listPrototypes,
+	releaseManifest,
+	toIndexPayload
+} from '#lib/server/recognition.js';
+import { toScannerContent } from '#lib/scanner/content.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { gallery } = await parent();
-	const [model, artworks] = await Promise.all([
-		activeModel(gallery.ownerId),
+	const [release, artworks] = await Promise.all([
+		activeRelease(),
 		listPublicArtworks(gallery.ownerId)
 	]);
-	if (!model) error(404, 'This gallery has no scanner yet.');
-	const manifest = modelManifest(model);
-	const visible = new Set(artworks.map((artwork) => artwork.id));
+	if (!release) error(404, 'The scanner is not available yet.');
+	const prototypes = await listPrototypes(
+		release.id,
+		artworks.map((artwork) => artwork.id)
+	);
 	return {
-		manifest: { ...manifest, labels: restrictLabels(manifest.labels, visible) },
-		artworks: toScannerContent(artworks)
+		manifest: releaseManifest(release),
+		index: toIndexPayload(release.id, release.embedderDim, prototypes),
+		artworks: toScannerContent(artworks),
+		canTeach: gallery.isOwner
 	};
 };

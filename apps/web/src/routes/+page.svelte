@@ -154,7 +154,7 @@
 			<FeatureList
 				items={[
 					'Estimated value with purchase price as fallback',
-					'Pieces still missing a photo, so the model can learn them',
+					'Pieces still missing a photo, so the scanner can learn them',
 					'Recently added, one tap from the full grid'
 				]}
 			/>
@@ -165,12 +165,13 @@
 			id="scanner"
 			eyebrow="The scanner"
 			title="Point a phone at the wall. Know the piece."
-			description="A detector trained on your own photos runs inside the browser. Guests open your gallery link, allow the camera, and the story of whatever they're looking at appears, with a place to react."
+			description="Two on-device models find every artwork in view and tell yours apart by comparing them with your own photos. Guests open your gallery link, allow the camera, and the story of whatever they're looking at appears, with a place to react."
 			reverse
 		>
 			<FeatureList
 				items={[
 					'No app to install; works in Safari and Chrome',
+					'Nothing to train: a new piece is recognizable the moment its photo is up',
 					'Frames are processed on the phone and never uploaded',
 					'Six emoji reactions, rate-limited and anonymous',
 					'Share a curated public gallery at your own handle'

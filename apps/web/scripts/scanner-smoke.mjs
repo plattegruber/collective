@@ -22,7 +22,9 @@ const email = args.email ?? 'demo@collective.local';
 const password = args.password ?? 'demo-password-123';
 const video = args.video;
 const expect = args.expect;
-if (!video || !expect) throw new Error('--video and --expect are required');
+const expectUnknown = process.argv.includes('--expect-unknown');
+if (!video || (!expect && !expectUnknown))
+	throw new Error('--video and --expect <title> (or --expect-unknown) are required');
 
 const browser = await chromium.launch({
 	args: [
@@ -59,16 +61,24 @@ try {
 	if (await enable.isVisible({ timeout: 3000 }).catch(() => false)) await enable.click();
 
 	const started = Date.now();
-	await page.getByRole('heading', { name: expect }).waitFor({ timeout: 60_000 });
+	if (expectUnknown)
+		await page.getByText('Not in your collection yet').waitFor({ timeout: 60_000 });
+	else await page.getByRole('heading', { name: expect }).waitFor({ timeout: 60_000 });
 	const seconds = ((Date.now() - started) / 1000).toFixed(1);
 	await page.waitForTimeout(600);
 	await page.screenshot({
-		path: join(here, '..', 'static', 'marketing', 'scanner.jpg'),
+		path: join(
+			here,
+			'..',
+			'static',
+			'marketing',
+			expectUnknown ? 'scanner-unknown.jpg' : 'scanner.jpg'
+		),
 		type: 'jpeg',
 		quality: 86
 	});
 	console.log(
-		`Recognized "${expect}" after ${seconds}s; overlay shown. Console errors: ${errors.length}`
+		`${expectUnknown ? 'Flagged an unknown piece' : `Recognized "${expect}"`} after ${seconds}s; overlay shown. Console errors: ${errors.length}`
 	);
 	for (const error of errors) console.log('  ! ' + error);
 	process.exitCode = errors.length ? 1 : 0;

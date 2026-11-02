@@ -25,5 +25,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	// Cross-origin isolation lets the recognizer run multi-threaded WebAssembly. Every asset
+	// the app loads is same-origin, so nothing else needs to opt in.
+	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+	response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
 	return response;
 };

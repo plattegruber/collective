@@ -1,9 +1,20 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
-	import { Camera, X } from 'lucide-svelte';
-	import { DEFAULT_THRESHOLD, loadDetector, type Detector } from '#lib/detector/runtime.js';
-	import { DetectionTracker } from '#lib/detector/tracker.js';
-	import type { DetectorManifest } from '#lib/detector/types.js';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { Camera, Plus, X } from 'lucide-svelte';
+	import type { PrototypeIndexPayload, RecognizerManifest } from '#lib/domain/recognition.js';
+	import { cropToBlob } from '#lib/recognition/frames.js';
+	import {
+		formatLoadStage,
+		loadRecognizer,
+		type RecognizerModels
+	} from '#lib/recognition/loader.js';
+	import { PrototypeIndex } from '#lib/recognition/matcher.js';
+	import { Recognizer, type RecognitionFrame } from '#lib/recognition/recognizer.js';
+	import { rebuildIndex, rememberScan } from '#lib/recognition/teach.js';
+	import type { Box } from '#lib/recognition/types.js';
 	import {
 		CameraError,
 		openRearCamera,
@@ -11,18 +22,30 @@
 		stopStream,
 		type CameraPermission
 	} from './camera.js';
+	import { storeCapture } from './capture.js';
 	import ScannerOverlay, { type ScannerArtwork } from './ScannerOverlay.svelte';
 	import Button from '#lib/components/Button.svelte';
 
 	type Props = {
-		manifest: DetectorManifest;
+		manifest: RecognizerManifest;
+		index: PrototypeIndexPayload;
 		artworks: Record<string, ScannerArtwork>;
 		reactions?: boolean;
 		backHref: string;
 		title?: string;
+		/** Owners teach the recognizer while scanning and can add unknown pieces. */
+		canTeach?: boolean;
 	};
 
-	let { manifest, artworks, reactions = true, backHref, title = 'Scanner' }: Props = $props();
+	let {
+		manifest,
+		index,
+		artworks,
+		reactions = true,
+		backHref,
+		title = 'Scanner',
+		canTeach = false
+	}: Props = $props();
 
 	type Phase = 'idle' | 'permission' | 'loading' | 'scanning' | 'error';
 	let phase = $state<Phase>('idle');
@@ -30,22 +53,31 @@
 	let errorMessage = $state('');
 	let permission = $state<CameraPermission>('unknown');
 	let video: HTMLVideoElement | undefined = $state();
-	let currentId = $state<string | null>(null);
+	let frame = $state<RecognitionFrame | null>(null);
 	let fps = $state(0);
-	/** `?debug` shows the strongest raw detection and the tracker's smoothed confidence; handy when tuning a model on site. */
+	let viewport = $state({ width: 1, height: 1 });
+	let videoSize = $state({ width: 0, height: 0 });
+	let backend = $state('');
+	let adding = $state(false);
+	/** `?debug` shows timings and similarities; handy when tuning thresholds on site. */
 	const debug =
 		typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
-	let debugLine = $state('');
 
 	let stream: MediaStream | null = null;
-	let detector: Detector | null = null;
-	let frameHandle = 0;
+	let recognizer: Recognizer | null = null;
+	let models: RecognizerModels | null = null;
 	let running = false;
 	/** Bumped by stop(); a start() that outlives its generation abandons its work. */
 	let generation = 0;
-	const tracker = new DetectionTracker();
+	// The payload is fixed for the page; a new release or gallery means a new page load.
+	const prototypeIndex = PrototypeIndex.fromPayload(untrack(() => index));
+	/** Plain record, not reactive: nothing renders from it. */
+	const remembered: Record<string, number> = {};
+	let stableSince: { artworkId: string; since: number } | null = null;
 
+	const currentId = $derived(frame?.current?.artworkId ?? null);
 	const current = $derived(currentId ? (artworks[currentId] ?? null) : null);
+	const unknown = $derived(canTeach && !currentId ? (frame?.unknown ?? null) : null);
 	const prompts = [
 		'Point me toward the art.',
 		'Frame the whole piece.',
@@ -54,6 +86,21 @@
 	];
 	let promptIndex = $state(0);
 	let promptTimer: ReturnType<typeof setInterval> | undefined;
+
+	/** The video is object-cover; map frame pixels onto the viewport. */
+	function toScreen(box: Box): Box {
+		const { width: vw, height: vh } = videoSize;
+		if (!vw || !vh) return box;
+		const scale = Math.max(viewport.width / vw, viewport.height / vh);
+		const ox = (viewport.width - vw * scale) / 2;
+		const oy = (viewport.height - vh * scale) / 2;
+		return {
+			x1: ox + box.x1 * scale,
+			y1: oy + box.y1 * scale,
+			x2: ox + box.x2 * scale,
+			y2: oy + box.y2 * scale
+		};
+	}
 
 	async function start() {
 		const gen = ++generation;
@@ -72,20 +119,20 @@
 			video.srcObject = stream;
 			await video.play();
 			if (cancelled()) return;
+			videoSize = { width: video.videoWidth, height: video.videoHeight };
 
-			if (!detector) {
-				const loaded = await loadDetector(manifest, (stage) => (status = stage));
-				if (cancelled()) {
-					void loaded.dispose();
-					return;
-				}
-				detector = loaded;
+			if (!models) {
+				const loaded = await loadRecognizer(manifest, (stage) => (status = formatLoadStage(stage)));
+				if (cancelled()) return;
+				models = loaded;
+				backend = loaded.backend;
 			}
-			tracker.reset();
+			recognizer = new Recognizer(models, prototypeIndex);
 			phase = 'scanning';
 			running = true;
 			promptTimer = setInterval(() => (promptIndex = (promptIndex + 1) % prompts.length), 4000);
-			void loop();
+			void loop(gen);
+			if (canTeach) void selfHeal(gen);
 		} catch (cause) {
 			if (cancelled()) return;
 			stopStream(stream);
@@ -100,22 +147,30 @@
 		}
 	}
 
-	async function loop() {
+	/** Photos uploaded before this release (or from a device without the models) get indexed now. */
+	async function selfHeal(gen: number) {
+		try {
+			await rebuildIndex(undefined, undefined, (artworkId, embedding) => {
+				if (gen === generation) prototypeIndex.add(artworkId, embedding);
+			});
+		} catch (cause) {
+			console.warn('Index self-heal failed', cause);
+		}
+	}
+
+	async function loop(gen: number) {
 		let lastTick = performance.now();
 		let frames = 0;
-		while (running && detector && video) {
+		while (running && gen === generation && recognizer && video) {
 			try {
-				const detections = await detector.detect(video, debug ? 0.05 : undefined);
-				const update = tracker.update(detections.filter((d) => d.score >= DEFAULT_THRESHOLD));
-				if (update.changed) currentId = update.current;
-				if (debug) {
-					const best = detections[0];
-					debugLine = best
-						? `${artworks[best.artworkId]?.title ?? best.artworkId} raw ${best.score.toFixed(2)} · smoothed ${tracker.confidenceOf(best.artworkId).toFixed(2)}`
-						: 'no detections';
+				const result = await recognizer.step(video);
+				if (gen !== generation) return;
+				if (result) {
+					frame = result;
+					void maybeRemember(result);
 				}
 			} catch (cause) {
-				console.error('Detection failed', cause);
+				console.error('Recognition failed', cause);
 			}
 			frames += 1;
 			const now = performance.now();
@@ -124,24 +179,62 @@
 				frames = 0;
 				lastTick = now;
 			}
-			await new Promise<void>((resolve) => (frameHandle = requestAnimationFrame(() => resolve())));
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		}
+	}
+
+	/** After a match has held for a moment, keep that view as a memory so it is found faster next time. */
+	async function maybeRemember(result: RecognitionFrame) {
+		if (!canTeach || !models) return;
+		const embedding = result.current?.region?.embedding;
+		if (!result.current || !embedding) return;
+		const { artworkId } = result.current;
+		const now = performance.now();
+		if (stableSince?.artworkId !== artworkId) {
+			stableSince = { artworkId, since: now };
+			return;
+		}
+		if (now - stableSince.since < 2500) return;
+		const last = remembered[artworkId] ?? -Infinity;
+		if (now - last < 60_000) return;
+		remembered[artworkId] = now;
+		try {
+			await rememberScan(models, artworkId, embedding);
+			prototypeIndex.add(artworkId, embedding);
+		} catch (cause) {
+			console.warn('Could not store scan memory', cause);
+		}
+	}
+
+	async function addUnknown() {
+		if (!video || !unknown || adding) return;
+		adding = true;
+		try {
+			await storeCapture(await cropToBlob(video, unknown.box));
+			await goto(resolve('/(app)/app/artworks/new'));
+		} catch (cause) {
+			console.error('Could not capture the piece', cause);
+			adding = false;
 		}
 	}
 
 	function stop() {
 		generation += 1;
 		running = false;
-		cancelAnimationFrame(frameHandle);
 		clearInterval(promptTimer);
 		stopStream(stream);
 		stream = null;
-		currentId = null;
+		recognizer = null;
+		frame = null;
 		phase = 'idle';
 	}
 
 	// $effect only runs in the browser, so none of this touches the camera or ORT during SSR.
 	$effect(() => {
 		let cancelled = false;
+		const measure = () => (viewport = { width: window.innerWidth, height: window.innerHeight });
+		measure();
+		window.addEventListener('resize', measure);
 		void queryCameraPermission().then((state) => {
 			if (cancelled) return;
 			permission = state;
@@ -154,9 +247,17 @@
 		});
 		return () => {
 			cancelled = true;
+			window.removeEventListener('resize', measure);
 			stop();
-			void detector?.dispose();
 		};
+	});
+
+	const debugLine = $derived.by(() => {
+		if (!frame) return 'no frame';
+		const best = [...frame.regions]
+			.filter((r) => r.embedding)
+			.sort((a, b) => b.similarity - a.similarity)[0];
+		return `${backend} · detect ${frame.timings.detectMs.toFixed(0)}ms · embed ${frame.timings.embedMs.toFixed(0)}ms · ${frame.regions.length} region${frame.regions.length === 1 ? '' : 's'}${best ? ` · best ${best.artworkId ? (artworks[best.artworkId]?.title ?? best.artworkId) : 'unknown'} ${best.similarity.toFixed(2)}` : ''} · index ${prototypeIndex.size}`;
 	});
 </script>
 
@@ -168,6 +269,36 @@
 		muted
 		playsinline
 	></video>
+
+	{#if phase === 'scanning' && frame}
+		<svg
+			class="pointer-events-none absolute inset-0 z-10 size-full"
+			viewBox={`0 0 ${viewport.width} ${viewport.height}`}
+			aria-hidden="true"
+		>
+			{#each frame.regions.filter((r) => r.misses === 0 && !r.nested) as region (region.id)}
+				{@const box = toScreen(region.box)}
+				{@const matched = region.artworkId !== null}
+				{@const isCurrent = currentId !== null && region.artworkId === currentId}
+				<rect
+					x={box.x1}
+					y={box.y1}
+					width={Math.max(0, box.x2 - box.x1)}
+					height={Math.max(0, box.y2 - box.y1)}
+					rx="14"
+					fill={isCurrent ? 'rgba(232, 118, 56, 0.08)' : 'none'}
+					stroke={isCurrent
+						? 'rgb(232, 118, 56)'
+						: matched
+							? 'rgba(255,255,255,0.75)'
+							: 'rgba(255,255,255,0.35)'}
+					stroke-width={isCurrent ? 3 : 1.5}
+					stroke-dasharray={matched ? undefined : '6 8'}
+					class="transition-all duration-200 ease-out"
+				/>
+			{/each}
+		</svg>
+	{/if}
 
 	<div
 		class="absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))]"
@@ -194,7 +325,7 @@
 		</p>
 	{/if}
 
-	{#if phase === 'scanning' && !current}
+	{#if phase === 'scanning' && !current && !unknown}
 		<div
 			class="pointer-events-none absolute inset-0 z-10 grid place-items-center"
 			transition:fade={{ duration: 250 }}
@@ -228,6 +359,26 @@
 		</div>
 	{/if}
 
+	{#if unknown && phase === 'scanning'}
+		<div
+			class="absolute inset-x-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-20 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-96"
+			transition:fly={{ y: 16, duration: 250 }}
+		>
+			<div
+				class="flex items-center gap-3 rounded-3xl border border-white/15 bg-neutral-950/60 p-3 pl-5 shadow-lift backdrop-blur-xl"
+			>
+				<div class="min-w-0 flex-1">
+					<p class="font-display text-lg font-medium">Not in your collection yet</p>
+					<p class="text-xs text-white/60">Add it now with this photo as its first picture.</p>
+				</div>
+				<Button variant="inverse" size="sm" onclick={addUnknown} disabled={adding}>
+					<Plus class="size-4" aria-hidden="true" />
+					{adding ? 'Saving…' : 'Add piece'}
+				</Button>
+			</div>
+		</div>
+	{/if}
+
 	{#if current && currentId}
 		<div class="absolute inset-0 z-20" transition:fly={{ y: 24, duration: 300 }}>
 			<ScannerOverlay artwork={current} artworkId={currentId} {reactions} />
@@ -239,10 +390,11 @@
 			class="absolute inset-0 z-30 grid place-items-center bg-black/70 backdrop-blur-sm"
 			role="status"
 		>
-			<div class="flex flex-col items-center gap-3">
+			<div class="flex flex-col items-center gap-3 px-6 text-center">
 				<span class="size-8 animate-spin rounded-full border-2 border-white/30 border-t-white"
 				></span>
 				<p class="text-sm text-white/80">{status}…</p>
+				<p class="text-xs text-white/40">{manifest.config.attribution}</p>
 			</div>
 		</div>
 	{/if}

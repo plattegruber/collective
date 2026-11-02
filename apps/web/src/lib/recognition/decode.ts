@@ -1,5 +1,5 @@
 import { unletterboxBox } from './letterbox.js';
-import type { Detection, Letterbox } from './types.js';
+import type { DetectedRegion, Letterbox } from './types.js';
 
 /** The subset of an ORT tensor we read; keeps this module free of the runtime import. */
 export interface TensorLike {
@@ -12,26 +12,25 @@ export interface DecodeOptions {
 	letterbox: Letterbox;
 	frameWidth: number;
 	frameHeight: number;
-	labels: Record<string, string>;
+	/** Drop boxes whose shorter side is below this many source pixels. */
+	minEdge?: number;
 }
 
 /**
- * Turns raw `boxes`/`scores`/`labels` outputs into artwork detections in frame coordinates.
- * Unknown classes and degenerate boxes are dropped.
+ * Turns raw `boxes`/`scores` outputs into regions in frame coordinates, best first.
+ * The detector is class-agnostic, so `labels` is ignored beyond skipping background (0).
  */
-export function decodeDetections(
-	output: { boxes: TensorLike; scores: TensorLike; labels: TensorLike },
+export function decodeRegions(
+	output: { boxes: TensorLike; scores: TensorLike; labels?: TensorLike },
 	options: DecodeOptions
-): Detection[] {
+): DetectedRegion[] {
 	const count = output.scores.dims.at(-1) ?? output.scores.data.length;
-	const detections: Detection[] = [];
+	const minEdge = options.minEdge ?? 8;
+	const regions: DetectedRegion[] = [];
 	for (let i = 0; i < count; i += 1) {
 		const score = Number(output.scores.data[i]);
 		if (!(score >= options.threshold)) continue;
-		const classIndex = Number(output.labels.data[i]);
-		if (classIndex <= 0) continue;
-		const artworkId = options.labels[String(classIndex)];
-		if (!artworkId) continue;
+		if (output.labels && Number(output.labels.data[i]) <= 0) continue;
 		const offset = i * 4;
 		const box = unletterboxBox(
 			{
@@ -44,8 +43,8 @@ export function decodeDetections(
 			options.frameWidth,
 			options.frameHeight
 		);
-		if (box.x2 <= box.x1 || box.y2 <= box.y1) continue;
-		detections.push({ artworkId, score, box });
+		if (box.x2 - box.x1 < minEdge || box.y2 - box.y1 < minEdge) continue;
+		regions.push({ score, box });
 	}
-	return detections.sort((a, b) => b.score - a.score);
+	return regions.sort((a, b) => b.score - a.score);
 }

@@ -1,14 +1,27 @@
 import { listArtworks } from '#lib/server/artworks.js';
-import { activeModel, modelManifest } from '#lib/server/models.js';
+import {
+	activeRelease,
+	listPrototypes,
+	releaseManifest,
+	toIndexPayload
+} from '#lib/server/recognition.js';
 import { toScannerContent } from '#lib/scanner/content.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { user } = await parent();
-	const [model, artworks] = await Promise.all([activeModel(user.id), listArtworks(user.id)]);
+	const [release, artworks] = await Promise.all([activeRelease(), listArtworks(user.id)]);
+	if (!release) {
+		return { manifest: null, index: null, artworks: toScannerContent(artworks), canTeach: true };
+	}
+	const prototypes = await listPrototypes(
+		release.id,
+		artworks.map((artwork) => artwork.id)
+	);
 	return {
-		manifest: model ? modelManifest(model) : null,
+		manifest: releaseManifest(release),
+		index: toIndexPayload(release.id, release.embedderDim, prototypes),
 		artworks: toScannerContent(artworks),
-		photographed: artworks.filter((artwork) => artwork.primaryImage).length
+		canTeach: true
 	};
 };

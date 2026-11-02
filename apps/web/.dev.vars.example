@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local development. In production set it with `wrangler secret put RELEASE_TOKEN`.
+RELEASE_TOKEN=change-me

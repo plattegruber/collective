@@ -1,7 +1,10 @@
 /**
  * onnxruntime-web is loaded at runtime from /ort/ rather than bundled: its WebAssembly
  * binaries are tens of megabytes, exceed Cloudflare's 25 MiB asset limit when Vite emits
- * them, and are only needed by the scanner. This stages the wasm-only build into static/ort.
+ * them, and are only needed by the recognizer. This stages two builds into static/ort: the
+ * plain wasm build (every browser) and the JSPI build that adds the WebGPU execution
+ * provider on browsers with WebGPU and JS Promise Integration. Both stay under Cloudflare's
+ * per-asset limit; the asyncify WebGPU build does not, which is why it is not used.
  */
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -17,7 +20,10 @@ mkdirSync(target, { recursive: true });
 for (const file of [
 	'ort.wasm.min.mjs',
 	'ort-wasm-simd-threaded.mjs',
-	'ort-wasm-simd-threaded.wasm'
+	'ort-wasm-simd-threaded.wasm',
+	'ort.jspi.min.mjs',
+	'ort-wasm-simd-threaded.jspi.mjs',
+	'ort-wasm-simd-threaded.jspi.wasm'
 ]) {
 	copyFileSync(join(dist, file), join(target, file));
 }

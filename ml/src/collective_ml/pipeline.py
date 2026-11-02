@@ -7,19 +7,19 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from collective_ml.api import CollectiveClient, PublishedModel, pull_collection
+from collective_ml.api import CollectiveClient, pull_collection
+from collective_ml.composites import ARTWORK_CATEGORY, CompositeOptions, compose
 from collective_ml.config import ApiSettings, Workspace
-from collective_ml.labels import load_label_map
+from collective_ml.files import list_images
 
 log = logging.getLogger(__name__)
 
 
-def pull(settings: ApiSettings, workspace_root: Path) -> Workspace:
-    """Download the collection into `<workspace_root>/<userId>/`."""
+def pull(settings: ApiSettings, workspace: Workspace) -> int:
+    """Download a collection's photos into `raw/<artworkId>/` for evaluation."""
+    workspace.ensure()
     with CollectiveClient(settings) as client:
-        collection = client.fetch_collection()
-        workspace = Workspace(workspace_root / collection.user_id).ensure()
-        _, downloaded, skipped = pull_collection(
+        collection, downloaded, skipped = pull_collection(
             client, workspace.raw_dir, workspace.collection_json
         )
     usable = len(collection.with_images())
@@ -29,46 +29,52 @@ def pull(settings: ApiSettings, workspace_root: Path) -> Workspace:
         skipped,
         usable,
     )
-    if usable == 0:
-        raise SystemExit("No artwork has a photo yet. Add photos in the app, then pull again.")
-    return workspace
+    return usable
 
 
-def resolve_workspace(workspace_root: Path, user_id: str | None) -> Workspace:
-    """Pick the per-user workspace; infer the user when only one exists."""
-    if user_id:
-        return Workspace(workspace_root / user_id)
-    candidates = (
-        sorted(p for p in workspace_root.iterdir() if p.is_dir()) if workspace_root.is_dir() else []
+def fetch_data(workspace: Workspace, foregrounds: int, rooms: int) -> None:
+    """Open images that teach the detector: paintings as foregrounds, rooms as backgrounds."""
+    from collective_ml.datasets import fetch_foregrounds, fetch_rooms
+
+    workspace.ensure()
+    fetch_foregrounds(workspace.foregrounds_dir, foregrounds)
+    fetch_rooms(workspace.rooms_dir, rooms)
+
+
+def compose_detector_dataset(workspace: Workspace, options: CompositeOptions) -> int:
+    """Every painting (plus any pulled photos) on every kind of wall, one class: artwork."""
+    foregrounds = list_images(workspace.foregrounds_dir) + list_images(workspace.raw_dir)
+    if not foregrounds:
+        raise SystemExit(
+            f"No foregrounds under {workspace.foregrounds_dir}. Run `collective-ml fetch-data`."
+        )
+    rooms = workspace.rooms_dir if list_images(workspace.rooms_dir) else None
+    dataset = compose(
+        dict.fromkeys(foregrounds, ARTWORK_CATEGORY), workspace.detector_dataset_dir, options, rooms
     )
-    if len(candidates) == 1:
-        return Workspace(candidates[0])
-    if not candidates:
-        raise SystemExit(f"No workspace under {workspace_root}. Run `collective-ml pull` first.")
-    names = ", ".join(p.name for p in candidates)
-    raise SystemExit(f"Several workspaces found ({names}); pass --user to choose one.")
+    return len(dataset.images)
 
 
-def load_metrics(workspace: Workspace) -> dict[str, Any] | None:
-    """Read `metrics.json` if training wrote one."""
-    if not workspace.metrics_json.exists():
-        return None
-    data = json.loads(workspace.metrics_json.read_text())
-    # Keep the payload small: history is useful locally, not in the app.
-    data.pop("history", None)
-    return data
+def train_detector(workspace: Workspace, **train_kwargs: Any) -> dict[str, Any]:
+    """Trains, exports and verifies the detector; returns the metrics written next to it."""
+    from collective_ml.export import export_onnx, verify_onnx
+    from collective_ml.train import TrainOptions, train
 
-
-def publish(settings: ApiSettings, workspace: Workspace) -> PublishedModel:
-    """Upload `model.onnx` + `labels.json` (+ metrics) and activate it."""
-    if not workspace.onnx_path.exists():
-        raise SystemExit(f"{workspace.onnx_path} not found. Run `collective-ml export` first.")
-    labels = load_label_map(workspace.labels_json)
-    metrics = load_metrics(workspace)
-    input_size = int(metrics["imgSize"]) if metrics and "imgSize" in metrics else 320
-    with CollectiveClient(settings) as client:
-        published = client.publish_model(workspace.onnx_path, labels, input_size, metrics)
+    options = TrainOptions(**train_kwargs)
+    result = train(workspace.detector_dataset_dir, workspace.detector_dir, options)
+    export_onnx(result.checkpoint, workspace.detector_onnx)
+    verify_onnx(workspace.detector_onnx, options.img_size)
     log.info(
-        "Published model %s (%d classes) → %s", published.id, len(published.labels), published.url
+        "Detector: best epoch %d, val loss %.3f, mAP@50 %.3f → %s",
+        result.best_epoch,
+        result.best_val_loss,
+        result.map50,
+        workspace.detector_onnx,
     )
-    return published
+    return load_json(workspace.detector_metrics_json) or {}
+
+
+def load_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
