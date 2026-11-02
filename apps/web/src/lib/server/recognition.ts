@@ -3,12 +3,13 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db, schema } from './db/index.js';
 import { newId } from '#lib/utils/id.js';
 import { bytesToBase64Url, sha256Hex } from '#lib/utils/encoding.js';
-import type {
-	NormalizedBox,
-	PrototypeIndexPayload,
-	PrototypeSource,
-	RecognizerConfig,
-	RecognizerManifest
+import {
+	DEFAULT_RECOGNIZER_CONFIG,
+	type NormalizedBox,
+	type PrototypeIndexPayload,
+	type PrototypeSource,
+	type RecognizerConfig,
+	type RecognizerManifest
 } from '#lib/domain/recognition.js';
 import { cosineSimilarity } from '#lib/recognition/vectors.js';
 
@@ -137,7 +138,12 @@ export function releaseManifest(
 			inputSize: release.embedderInputSize,
 			dim: release.embedderDim
 		},
-		config: release.config
+		// Older releases may predate newer config fields; defaults fill the gaps.
+		config: {
+			...DEFAULT_RECOGNIZER_CONFIG,
+			...release.config,
+			thresholds: { ...DEFAULT_RECOGNIZER_CONFIG.thresholds, ...release.config.thresholds }
+		}
 	};
 }
 

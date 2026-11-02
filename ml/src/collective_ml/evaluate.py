@@ -107,24 +107,55 @@ def sweep_thresholds(
     correct: np.ndarray,
     impostors: np.ndarray,
     far_targets: tuple[float, float] = (0.02, 0.005),
-    grid: np.ndarray | None = None,
+    genuine_margin: np.ndarray | None = None,
+    impostor_margin: np.ndarray | None = None,
+    margins: tuple[float, ...] = (0.0, 0.04, 0.06, 0.08, 0.1, 0.12, 0.15),
 ) -> dict[str, Any]:
     """
-    For each threshold: true-positive rate (genuine similarity above it *and* the right
-    piece) and false-accept rate on impostors. Suggests the lowest thresholds that keep
-    false accepts at or below each target; falls back to the strictest grid value.
+    A region is accepted when its best similarity clears a threshold *and* beats the
+    runner-up piece by a margin. For every margin, find the lowest threshold whose
+    false-accept rate on impostors is at or below each target; keep the margin that
+    recognises the most genuine views at the first target. Without margin arrays the
+    sweep is purely on similarity.
     """
-    grid = np.round(np.arange(0.30, 0.96, 0.01), 2) if grid is None else grid
-    rows = []
-    for t in grid:
-        tpr = float(np.mean((genuine >= t) & correct)) if genuine.size else 0.0
-        far = float(np.mean(impostors >= t)) if impostors.size else 0.0
-        rows.append({"threshold": float(t), "tpr": tpr, "far": far})
-    suggestions = []
-    for target in far_targets:
-        chosen = next((row for row in rows if row["far"] <= target), rows[-1])
-        suggestions.append(chosen["threshold"])
-    return {"rows": rows, "match": suggestions[0], "strong": max(suggestions)}
+    # Never let the absolute floor drop below 0.45: the margin may do the work on a large
+    # collection, but a weak absolute similarity should still never pass.
+    grid = np.round(np.arange(0.45, 0.96, 0.01), 2)
+    if genuine_margin is None or impostor_margin is None:
+        margins = (0.0,)
+        genuine_margin = np.full(genuine.shape, np.inf)
+        impostor_margin = np.full(impostors.shape, np.inf)
+
+    def rate(values: np.ndarray, mask: np.ndarray) -> float:
+        return float(np.mean(mask)) if values.size else 0.0
+
+    best: dict[str, Any] | None = None
+    by_margin: list[dict[str, float]] = []
+    for margin in margins:
+        rows = [
+            {
+                "threshold": float(t),
+                "tpr": rate(genuine, (genuine >= t) & (genuine_margin >= margin) & correct),
+                "far": rate(impostors, (impostors >= t) & (impostor_margin >= margin)),
+            }
+            for t in grid
+        ]
+        picks = [next((r for r in rows if r["far"] <= target), rows[-1]) for target in far_targets]
+        candidate = {
+            "margin": float(margin),
+            "rows": rows,
+            "match": picks[0]["threshold"],
+            "strong": max(p["threshold"] for p in picks),
+            "tpr": picks[0]["tpr"],
+        }
+        by_margin.append(
+            {"margin": float(margin), "match": candidate["match"], "tpr": candidate["tpr"]}
+        )
+        if best is None or candidate["tpr"] > best["tpr"]:
+            best = candidate
+    assert best is not None
+    best["byMargin"] = by_margin
+    return best
 
 
 def _best_region(regions: list[Region], truth: Box) -> tuple[Region | None, float]:
@@ -211,8 +242,10 @@ def evaluate_release(
         )
 
     genuine: list[float] = []
+    genuine_margin: list[float] = []
     correct: list[bool] = []
     impostor_known: list[float] = []
+    impostor_known_margin: list[float] = []
     ious: list[float] = []
     detected = total = 0
     for image_meta in queries.images:
@@ -229,13 +262,18 @@ def evaluate_release(
             scores = similarities(prototypes, embedder.embed(image, region.box))
             truth_id = categories[ann.category_id]
             predicted = max(scores, key=lambda k: scores[k])
-            genuine.append(scores[truth_id])
-            correct.append(predicted == truth_id)
+            ranked = sorted(scores.values(), reverse=True)
             others = [v for k, v in scores.items() if k != truth_id]
-            if others:
-                impostor_known.append(max(others))
+            genuine.append(scores[truth_id])
+            genuine_margin.append(scores[truth_id] - max(others) if others else float("inf"))
+            correct.append(predicted == truth_id)
+            if predicted != truth_id:
+                # A wrong piece won: that is what a false accept would look like.
+                impostor_known.append(ranked[0])
+                impostor_known_margin.append(ranked[0] - ranked[1])
 
     impostor_unknown: list[float] = []
+    impostor_unknown_margin: list[float] = []
     distractor_regions = 0
     if distractors is not None:
         for image_meta in distractors.images:
@@ -245,14 +283,30 @@ def evaluate_release(
             ]:
                 distractor_regions += 1
                 scores = similarities(prototypes, embedder.embed(image, region.box))
-                impostor_unknown.append(max(scores.values()))
+                ranked = sorted(scores.values(), reverse=True)
+                impostor_unknown.append(ranked[0])
+                impostor_unknown_margin.append(
+                    ranked[0] - ranked[1] if len(ranked) > 1 else float("inf")
+                )
 
     genuine_arr = np.asarray(genuine, dtype=np.float32)
     correct_arr = np.asarray(correct, dtype=bool)
     unknown_arr = np.asarray(impostor_unknown, dtype=np.float32)
     known_arr = np.asarray(impostor_known, dtype=np.float32)
-    impostors = np.concatenate([unknown_arr, known_arr]) if known_arr.size else unknown_arr
-    sweep = sweep_thresholds(genuine_arr, correct_arr, impostors)
+    impostors = np.concatenate([unknown_arr, known_arr])
+    impostor_margins = np.concatenate(
+        [
+            np.asarray(impostor_unknown_margin, dtype=np.float32),
+            np.asarray(impostor_known_margin, dtype=np.float32),
+        ]
+    )
+    sweep = sweep_thresholds(
+        genuine_arr,
+        correct_arr,
+        impostors,
+        genuine_margin=np.asarray(genuine_margin, dtype=np.float32),
+        impostor_margin=impostor_margins,
+    )
 
     def pct(values: np.ndarray, q: float) -> float:
         return float(np.percentile(values, q)) if values.size else float("nan")
@@ -279,8 +333,13 @@ def evaluate_release(
             "p95": pct(unknown_arr, 95),
             "max": float(unknown_arr.max()) if unknown_arr.size else 0.0,
         },
-        "suggested": {"match": sweep["match"], "strong": sweep["strong"]},
+        "suggested": {
+            "match": sweep["match"],
+            "strong": sweep["strong"],
+            "margin": sweep["margin"],
+        },
         "sweep": sweep["rows"],
+        "byMargin": sweep["byMargin"],
         "options": options.__dict__,
     }
     (eval_dir / "report.json").write_text(json.dumps(report, indent=2))
@@ -300,7 +359,12 @@ def format_report(report: dict[str, Any]) -> str:
         f"impostor (other piece) p95 {k['p95']:.3f} max {k['max']:.3f}",
         f"impostor (unknown art, {u['regions']} regions) p95 {u['p95']:.3f} max {u['max']:.3f}",
         f"suggested thresholds: match {report['suggested']['match']:.2f} · "
-        f"strong {report['suggested']['strong']:.2f}"
+        f"strong {report['suggested']['strong']:.2f} · margin {report['suggested']['margin']:.2f}"
         + (f" (TPR {at['tpr']:.3f}, FAR {at['far']:.3f} at match)" if at else ""),
+        "by margin: "
+        + ", ".join(
+            f"{row['margin']:.2f}→{row['match']:.2f}/{row['tpr']:.3f}"
+            for row in report.get("byMargin", [])
+        ),
     ]
     return "\n".join(lines)

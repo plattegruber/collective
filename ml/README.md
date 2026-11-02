@@ -46,8 +46,11 @@ collective-ml evaluate    # held-out views on rooms + unknown art as distractors
 ```
 
 The report prints detection recall, top-1 accuracy, the similarity distributions, and
-the thresholds that keep false accepts under 2% (match) and 0.5% (strong). Re-run
-`collective-ml release` afterwards and those thresholds are written into `release.json`.
+the thresholds that keep false accepts under 2% (match) and 0.5% (strong). A match must
+also beat the runner-up piece by a margin (a ratio test); the sweep picks the margin that
+recognises the most genuine views, which keeps unknown art out even when a collection
+holds a hundred similar paintings. Re-run `collective-ml release` afterwards and the
+thresholds are written into `release.json`.
 
 ## Publish
 

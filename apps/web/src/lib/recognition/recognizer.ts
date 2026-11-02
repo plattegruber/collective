@@ -1,7 +1,7 @@
 import type { RecognizerConfig } from '#lib/domain/recognition.js';
 import { containment } from './boxes.js';
 import type { RecognizerModels } from './loader.js';
-import type { PrototypeIndex } from './matcher.js';
+import { acceptsMatch, effectiveThresholds, type PrototypeIndex } from './matcher.js';
 import { RegionTracker } from './regionTracker.js';
 import { DetectionTracker } from './tracker.js';
 import type { PixelSource, TrackedRegion } from './types.js';
@@ -89,6 +89,7 @@ export class Recognizer {
 
 	async #process(source: PixelSource, now: number): Promise<RecognitionFrame> {
 		const { config } = this.#models.manifest;
+		const thresholds = effectiveThresholds(config.thresholds, this.#index.artworkIds.length);
 		const t0 = performance.now();
 		const detections = await this.#models.detector.detect(source, config.thresholds.detect);
 		const detectMs = performance.now() - t0;
@@ -126,7 +127,10 @@ export class Recognizer {
 			} else {
 				next.similarity = similarity;
 			}
-			next.artworkId = match && next.similarity >= config.thresholds.match ? match.artworkId : null;
+			next.artworkId =
+				acceptsMatch(match, thresholds) && next.similarity >= thresholds.match
+					? match.artworkId
+					: null;
 		}
 
 		for (const track of tracks) {
@@ -142,7 +146,7 @@ export class Recognizer {
 			.filter((track) => track.artworkId && track.misses === 0)
 			.map((track) => ({
 				artworkId: track.artworkId!,
-				score: similarityToConfidence(track.similarity, config.thresholds)
+				score: similarityToConfidence(track.similarity, thresholds)
 			}));
 		const update = this.#decision.update(evidence);
 		const currentRegion = update.current

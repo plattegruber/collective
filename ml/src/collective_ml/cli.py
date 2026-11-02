@@ -68,6 +68,10 @@ def _add_release_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--publish", action="store_true", help="Upload to the app")
     parser.add_argument("--release-token", help="App RELEASE_TOKEN (or $COLLECTIVE_RELEASE_TOKEN)")
     parser.add_argument("--no-activate", action="store_true", help="Publish without activating")
+    for name in ("match", "strong", "margin"):
+        parser.add_argument(
+            f"--{name}", type=float, help=f"Override the evaluated {name} threshold"
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -184,6 +188,11 @@ def _release(workspace: Workspace, args: argparse.Namespace) -> Path:
         detector_input_size=getattr(args, "train_size", 320),
         notes=args.notes,
         out_dir=args.out,
+        overrides={
+            name: value
+            for name in ("match", "strong", "margin")
+            if (value := getattr(args, name, None)) is not None
+        },
     )
     print(f"release {version} → {release_dir}")
     if args.publish:

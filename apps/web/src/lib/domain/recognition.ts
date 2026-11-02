@@ -32,6 +32,18 @@ export interface RecognizerConfig {
 		match: number;
 		/** Similarity above which the match is shown immediately (no second confirmation). */
 		strong: number;
+		/**
+		 * The best piece must beat the runner-up by this much (a ratio test). Unknown art tends
+		 * to be "a bit like" several pieces at once; the collector's own piece wins clearly.
+		 */
+		margin: number;
+		/**
+		 * `match` and `strong` were calibrated on a collection of this many pieces; the bar rises
+		 * by `matchSlope` × ln(pieces / matchReference) for larger ones, because the best
+		 * impostor among more pieces scores higher.
+		 */
+		matchReference: number;
+		matchSlope: number;
 		/** A scan memory is only kept when it is at least this far from existing prototypes. */
 		memoryNovelty: number;
 	};
@@ -46,7 +58,15 @@ export const DEFAULT_RECOGNIZER_CONFIG: RecognizerConfig = {
 	std: [0.229, 0.224, 0.225],
 	pooling: 'cls+mean',
 	cropMargin: 0.06,
-	thresholds: { detect: 0.45, match: 0.6, strong: 0.72, memoryNovelty: 0.92 },
+	thresholds: {
+		detect: 0.45,
+		match: 0.6,
+		strong: 0.72,
+		margin: 0.08,
+		matchReference: 7,
+		matchSlope: 0.034,
+		memoryNovelty: 0.92
+	},
 	maxMemories: 8,
 	attribution: 'Built with DINOv3'
 };

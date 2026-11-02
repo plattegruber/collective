@@ -3,6 +3,38 @@ import type { PrototypeIndexPayload } from '#lib/domain/recognition.js';
 import { cosineSimilarity } from './vectors.js';
 import type { Match } from './types.js';
 
+export interface MatchThresholds {
+	match: number;
+	strong: number;
+	margin: number;
+	matchReference: number;
+	matchSlope: number;
+}
+
+/**
+ * The thresholds for a collection of `pieces` artworks. Calibrated values hold at the
+ * reference size and rise logarithmically with the number of pieces the scanner must tell
+ * apart; smaller collections keep the calibrated values.
+ */
+export function effectiveThresholds<T extends MatchThresholds>(thresholds: T, pieces: number): T {
+	const growth = Math.log(Math.max(1, pieces) / Math.max(1, thresholds.matchReference));
+	const lift = thresholds.matchSlope * Math.max(0, growth);
+	return { ...thresholds, match: thresholds.match + lift, strong: thresholds.strong + lift };
+}
+
+/**
+ * Whether a nearest-prototype result counts as a recognition: the similarity must clear
+ * `match`, and when another piece is close behind, the lead must be at least `margin`.
+ */
+export function acceptsMatch(
+	match: Match | null,
+	thresholds: { match: number; margin: number }
+): match is Match {
+	if (!match || match.similarity < thresholds.match) return false;
+	if (!match.runnerUp) return true;
+	return match.similarity - match.runnerUp.similarity >= thresholds.margin;
+}
+
 function decodeVector(encoded: string, dim: number): Float32Array {
 	const bytes = base64UrlToBytes(encoded);
 	if (bytes.byteLength !== dim * 4) throw new RangeError('Prototype has the wrong length.');

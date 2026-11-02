@@ -22,6 +22,9 @@ const configSchema = z.object({
 		detect: z.number().min(0).max(1),
 		match: z.number().min(-1).max(1),
 		strong: z.number().min(-1).max(1),
+		margin: z.number().min(0).max(1).default(0.08),
+		matchReference: z.number().int().min(1).default(7),
+		matchSlope: z.number().min(0).max(1).default(0.034),
 		memoryNovelty: z.number().min(-1).max(1)
 	}),
 	maxMemories: z.number().int().min(0).max(64),

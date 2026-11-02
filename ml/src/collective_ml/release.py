@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,14 @@ class Thresholds:
     detect: float = 0.45
     match: float = 0.6
     strong: float = 0.72
+    # A match must also beat the runner-up piece by this much (a ratio test), which keeps
+    # unknown art out without raising the absolute threshold as collections grow.
+    margin: float = 0.08
+    # The absolute thresholds were calibrated on a collection of `match_reference` pieces;
+    # the browser raises them by `match_slope` * ln(pieces / reference) for larger ones,
+    # because the best impostor among more pieces scores higher.
+    match_reference: int = 7
+    match_slope: float = 0.034
     memory_novelty: float = 0.92
 
 
@@ -47,6 +55,9 @@ class ReleaseConfig:
                 "detect": self.thresholds.detect,
                 "match": self.thresholds.match,
                 "strong": self.thresholds.strong,
+                "margin": self.thresholds.margin,
+                "matchReference": self.thresholds.match_reference,
+                "matchSlope": self.thresholds.match_slope,
                 "memoryNovelty": self.thresholds.memory_novelty,
             },
             "maxMemories": self.max_memories,
@@ -61,6 +72,7 @@ def assemble_release(
     thresholds: Thresholds | None = None,
     notes: str | None = None,
     out_dir: Path | None = None,
+    overrides: dict[str, float] | None = None,
 ) -> Path:
     """
     Copies `detector.onnx` and `embedder.onnx` into the release folder and writes
@@ -91,6 +103,8 @@ def assemble_release(
             thresholds = Thresholds(
                 match=float(suggested["match"]),
                 strong=float(suggested["strong"]),
+                margin=float(suggested.get("margin", Thresholds.margin)),
+                match_reference=int(report.get("pieces", Thresholds.match_reference)),
             )
     if workspace.detector_metrics_json.exists():
         detector_metrics = json.loads(workspace.detector_metrics_json.read_text())
@@ -102,6 +116,8 @@ def assemble_release(
         "cosineVsFp32": info.cosine_vs_fp32,
     }
 
+    if overrides:
+        thresholds = replace(thresholds or Thresholds(), **overrides)
     config = ReleaseConfig(
         mean=info.mean,
         std=info.std,

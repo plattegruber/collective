@@ -31,7 +31,14 @@ def _workspace(tmp_path: Path) -> Workspace:
 def test_assemble_release_uses_evaluation_thresholds(tmp_path: Path):
     workspace = _workspace(tmp_path)
     (workspace.eval_dir / "report.json").write_text(
-        json.dumps({"top1Overall": 0.98, "suggested": {"match": 0.63, "strong": 0.74}, "sweep": []})
+        json.dumps(
+            {
+                "top1Overall": 0.98,
+                "pieces": 7,
+                "suggested": {"match": 0.63, "strong": 0.74, "margin": 0.08},
+                "sweep": [],
+            }
+        )
     )
     release_dir = assemble_release(workspace, "2026.11.02-1", notes="first")
     manifest = json.loads((release_dir / "release.json").read_text())
@@ -39,6 +46,8 @@ def test_assemble_release_uses_evaluation_thresholds(tmp_path: Path):
     assert manifest["embedderDim"] == 768 and manifest["detectorInputSize"] == 320
     assert manifest["config"]["thresholds"]["match"] == 0.63
     assert manifest["config"]["thresholds"]["strong"] == 0.74
+    assert manifest["config"]["thresholds"]["margin"] == 0.08
+    assert manifest["config"]["thresholds"]["matchReference"] == 7
     assert manifest["config"]["attribution"] == "Built with DINOv3"
     assert manifest["metrics"]["top1Overall"] == 0.98
     assert (release_dir / "detector.onnx").read_bytes() == b"detector"
@@ -52,6 +61,9 @@ def test_assemble_release_explicit_thresholds_win(tmp_path: Path):
         "detect": 0.45,
         "match": 0.5,
         "strong": 0.9,
+        "margin": 0.08,
+        "matchReference": 7,
+        "matchSlope": 0.034,
         "memoryNovelty": 0.92,
     }
 
@@ -81,3 +93,10 @@ def test_publish_release_sends_multipart(tmp_path: Path):
         "has_files": True,
         "version": True,
     }
+
+
+def test_assemble_release_overrides_win(tmp_path: Path):
+    workspace = _workspace(tmp_path)
+    release_dir = assemble_release(workspace, "v4", overrides={"margin": 0.12})
+    manifest = json.loads((release_dir / "release.json").read_text())
+    assert manifest["config"]["thresholds"]["margin"] == 0.12

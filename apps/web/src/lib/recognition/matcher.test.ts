@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PrototypeIndex } from './matcher.js';
+import { PrototypeIndex, acceptsMatch, effectiveThresholds } from './matcher.js';
 import { bytesToBase64Url } from '#lib/utils/encoding.js';
 
 function encode(values: number[]): string {
@@ -43,6 +43,29 @@ describe('PrototypeIndex', () => {
 		expect(() =>
 			PrototypeIndex.fromPayload({ releaseId: 'r', dim: 2, artworks: { a: [encode([1, 2, 3])] } })
 		).toThrow(RangeError);
+	});
+
+	it('accepts only clear winners', () => {
+		const thresholds = { match: 0.6, margin: 0.1 };
+		const runnerUp = { artworkId: 'b', similarity: 0.62 };
+		expect(acceptsMatch(null, thresholds)).toBe(false);
+		expect(acceptsMatch({ artworkId: 'a', similarity: 0.55, runnerUp: null }, thresholds)).toBe(
+			false
+		);
+		expect(acceptsMatch({ artworkId: 'a', similarity: 0.65, runnerUp: null }, thresholds)).toBe(
+			true
+		);
+		expect(acceptsMatch({ artworkId: 'a', similarity: 0.7, runnerUp }, thresholds)).toBe(false);
+		expect(acceptsMatch({ artworkId: 'a', similarity: 0.73, runnerUp }, thresholds)).toBe(true);
+	});
+
+	it('raises the bar with collection size but never lowers it', () => {
+		const base = { match: 0.56, strong: 0.59, margin: 0.08, matchReference: 7, matchSlope: 0.034 };
+		expect(effectiveThresholds(base, 7)).toEqual(base);
+		expect(effectiveThresholds(base, 1).match).toBe(0.56);
+		expect(effectiveThresholds(base, 100).match).toBeCloseTo(0.65, 2);
+		expect(effectiveThresholds(base, 100).strong).toBeCloseTo(0.68, 2);
+		expect(effectiveThresholds(base, 100).margin).toBe(0.08);
 	});
 
 	it('returns null on an empty index', () => {
