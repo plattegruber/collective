@@ -29,7 +29,7 @@
 		}
 	],
 	"vars": {
-		"PUBLIC_ORIGIN": "https://collective.example.com"
+		"PUBLIC_ORIGIN": "https://collective.gruberplatte.workers.dev"
 	},
 	"observability": {
 		"enabled": true
