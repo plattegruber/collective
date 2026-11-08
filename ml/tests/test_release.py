@@ -75,6 +75,7 @@ def test_publish_release_sends_multipart(tmp_path: Path):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen["auth"] = request.headers["authorization"]
+        seen["origin"] = request.headers["origin"]
         seen["path"] = request.url.path
         body = request.read()
         seen["has_files"] = b'name="detector"' in body and b'name="embedder"' in body
@@ -89,6 +90,7 @@ def test_publish_release_sends_multipart(tmp_path: Path):
     assert payload["id"] == "rel1"
     assert seen == {
         "auth": "Bearer secret",
+        "origin": "https://collective.test",
         "path": "/api/ml/releases",
         "has_files": True,
         "version": True,

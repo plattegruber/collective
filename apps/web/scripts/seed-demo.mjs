@@ -182,7 +182,8 @@ async function ensureRelease() {
 	if (files.meta.notes) body.set('notes', files.meta.notes);
 	const response = await fetch(`${base}/api/ml/releases`, {
 		method: 'POST',
-		headers: { authorization: `Bearer ${releaseToken}` },
+		// Production rejects form POSTs without a matching Origin (SvelteKit's CSRF check).
+		headers: { authorization: `Bearer ${releaseToken}`, origin: base },
 		body
 	});
 	if (response.status === 409) {

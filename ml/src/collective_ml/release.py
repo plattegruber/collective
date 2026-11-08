@@ -162,7 +162,13 @@ def publish_release(
         (release_dir / "embedder.onnx").open("rb") as embedder,
         httpx.Client(
             base_url=settings.base_url,
-            headers={"Authorization": f"Bearer {settings.token}", "User-Agent": "collective-ml"},
+            # SvelteKit rejects form POSTs whose Origin does not match the site outside dev;
+            # browsers cannot forge this header, so sending the site origin keeps the check intact.
+            headers={
+                "Authorization": f"Bearer {settings.token}",
+                "Origin": settings.base_url,
+                "User-Agent": "collective-ml",
+            },
             timeout=httpx.Timeout(60.0, write=600.0, read=300.0),
             transport=transport,
         ) as client,
