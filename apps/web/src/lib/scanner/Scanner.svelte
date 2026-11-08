@@ -12,6 +12,7 @@
 		type RecognizerModels
 	} from '#lib/recognition/loader.js';
 	import { PrototypeIndex } from '#lib/recognition/matcher.js';
+	import type { OrtBackend } from '#lib/recognition/ort.js';
 	import { Recognizer, type RecognitionFrame } from '#lib/recognition/recognizer.js';
 	import { rebuildIndex, rememberScan } from '#lib/recognition/teach.js';
 	import type { Box } from '#lib/recognition/types.js';
@@ -60,8 +61,13 @@
 	let backend = $state('');
 	let adding = $state(false);
 	/** `?debug` shows timings and similarities; handy when tuning thresholds on site. */
-	const debug =
-		typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+	const query = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+	const debug = query?.has('debug') ?? false;
+	/** `?backend=wasm` forces the fallback runtime, to compare both paths on one device. */
+	const preferredBackend: OrtBackend | 'auto' =
+		query?.get('backend') === 'wasm' || query?.get('backend') === 'webgpu'
+			? (query.get('backend') as OrtBackend)
+			: 'auto';
 
 	let stream: MediaStream | null = null;
 	let recognizer: Recognizer | null = null;
@@ -122,7 +128,11 @@
 			videoSize = { width: video.videoWidth, height: video.videoHeight };
 
 			if (!models) {
-				const loaded = await loadRecognizer(manifest, (stage) => (status = formatLoadStage(stage)));
+				const loaded = await loadRecognizer(
+					manifest,
+					(stage) => (status = formatLoadStage(stage)),
+					preferredBackend
+				);
 				if (cancelled()) return;
 				models = loaded;
 				backend = loaded.backend;
@@ -276,7 +286,7 @@
 			viewBox={`0 0 ${viewport.width} ${viewport.height}`}
 			aria-hidden="true"
 		>
-			{#each frame.regions.filter((r) => r.misses === 0 && !r.nested) as region (region.id)}
+			{#each frame.regions.filter((r) => r.misses === 0 && !r.nested && !r.synthetic && (r.strong || r.artworkId !== null)) as region (region.id)}
 				{@const box = toScreen(region.box)}
 				{@const matched = region.artworkId !== null}
 				{@const isCurrent = currentId !== null && region.artworkId === currentId}
@@ -380,7 +390,11 @@
 	{/if}
 
 	{#if current && currentId}
-		<div class="absolute inset-0 z-20" transition:fly={{ y: 24, duration: 300 }}>
+		<div
+			class="absolute inset-0 z-20"
+			in:fly={{ y: 24, duration: 300 }}
+			out:fly={{ y: 24, duration: 150 }}
+		>
 			<ScannerOverlay artwork={current} artworkId={currentId} {reactions} />
 		</div>
 	{/if}

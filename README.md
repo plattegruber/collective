@@ -72,7 +72,7 @@ Set `vars.PUBLIC_ORIGIN` in `wrangler.jsonc` to the public URL, then either run
 `npm run db:migrate:remote && npm run deploy`, or push to `main` with the repository
 secrets `CF_API_TOKEN` and `CF_ACCOUNT_ID` set and let `deploy.yml` do it.
 
-Add `?debug` to any scanner URL to see the strongest raw detection and the smoothed confidence while pointing the phone around.
+Add `?debug` to any scanner URL to see the runtime backend, per-frame timings and the strongest raw match while pointing the phone around; `?backend=wasm` forces the fallback runtime so both paths can be compared on one device.
 
 ## Ship a recognizer release
 

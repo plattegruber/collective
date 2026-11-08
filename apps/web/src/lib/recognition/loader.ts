@@ -23,12 +23,13 @@ let loaded: { releaseId: string; promise: Promise<RecognizerModels> } | undefine
  */
 export function loadRecognizer(
 	manifest: RecognizerManifest,
-	onStage?: (stage: LoadStage) => void
+	onStage?: (stage: LoadStage) => void,
+	preferred: OrtBackend | 'auto' = 'auto'
 ): Promise<RecognizerModels> {
 	if (loaded && loaded.releaseId === manifest.id) return loaded.promise;
 	const promise = (async () => {
 		onStage?.({ stage: 'runtime' });
-		const runtime = await loadOrt();
+		const runtime = await loadOrt(preferred);
 		const total = manifest.detector.bytes + manifest.embedder.bytes;
 		let detectorLoaded = 0;
 		let embedderLoaded = 0;

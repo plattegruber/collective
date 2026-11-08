@@ -12,6 +12,8 @@ export type PixelSource = HTMLVideoElement | HTMLImageElement | HTMLCanvasElemen
 export interface DetectedRegion {
 	score: number;
 	box: Box;
+	/** True for a guessed region (the frame centre when the detector finds nothing). */
+	synthetic?: boolean;
 }
 
 /** A region followed across frames and, once embedded, matched against the index. */
@@ -24,6 +26,12 @@ export interface TrackedRegion {
 	age: number;
 	/** Consecutive frames without a detection. */
 	misses: number;
+	/** Time of the last detection that continued this track. */
+	lastSeenAt: number;
+	/** The latest detection cleared the detector threshold (weak candidates need a strong match). */
+	strong: boolean;
+	/** The region was guessed rather than detected; drawn only once it matches. */
+	synthetic: boolean;
 	/** Best matching artwork, if the similarity cleared the match threshold. */
 	artworkId: string | null;
 	/** Smoothed cosine similarity of the current match (0 when unknown). */
@@ -33,6 +41,8 @@ export interface TrackedRegion {
 	lastEmbeddedAt: number;
 	/** Box at the time of the last embedding, to decide when a re-embed is worth it. */
 	embeddedBox: Box | null;
+	/** Luminance thumbnail at the time of the last embedding; a change triggers a re-embed. */
+	signature: Float32Array | null;
 	/** True when the region sits inside a matched piece (a picture within the picture). */
 	nested: boolean;
 }

@@ -7,6 +7,11 @@ export interface OrtRuntime {
 	backend: OrtBackend;
 	/** Execution providers to request, best first; ORT falls through the list. */
 	executionProviders: OrtBackend[];
+	/**
+	 * True when sessions run in a worker (`env.wasm.proxy`): input buffers are transferred
+	 * to it, so callers must hand over a fresh buffer per run.
+	 */
+	transfersInputs: boolean;
 }
 
 /**
@@ -15,7 +20,8 @@ export interface OrtRuntime {
  *
  * Two builds are staged: the plain wasm build, and the JSPI build that adds the WebGPU
  * execution provider on browsers with both WebGPU and JS Promise Integration (Chrome and
- * Edge on desktop and Android). Safari takes the wasm path with SIMD and threads.
+ * Edge on desktop and Android). Safari takes the wasm path with SIMD and threads, proxied
+ * to a worker so a 300 ms embedding never freezes the video or the overlay.
  */
 const ORT_BASE = '/ort/';
 let pending: Promise<OrtRuntime> | undefined;
@@ -46,12 +52,18 @@ function threadCount(): number {
 	return Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2));
 }
 
-async function importBuild(file: string): Promise<typeof Ort> {
+async function importBuild(file: string, proxy: boolean): Promise<typeof Ort> {
 	const module = (await import(/* @vite-ignore */ `${ORT_BASE}${file}`)) as typeof Ort;
 	module.env.wasm.wasmPaths = ORT_BASE;
 	module.env.wasm.numThreads = threadCount();
+	module.env.wasm.proxy = proxy;
 	module.env.logLevel = 'warning';
 	return module;
+}
+
+/** The WebGPU provider cannot be proxied; plain wasm can whenever workers exist. */
+function canProxy(): boolean {
+	return typeof Worker !== 'undefined';
 }
 
 /** Loads the best runtime for this browser. A failed attempt is forgotten so retries work. */
@@ -60,14 +72,20 @@ export function loadOrt(preferred: OrtBackend | 'auto' = 'auto'): Promise<OrtRun
 	const promise: Promise<OrtRuntime> = (async (): Promise<OrtRuntime> => {
 		if (preferred !== 'wasm' && (await supportsWebGpuBuild())) {
 			try {
-				const ort = await importBuild('ort.jspi.min.mjs');
-				return { ort, backend: 'webgpu' as const, executionProviders: ['webgpu', 'wasm'] };
+				const ort = await importBuild('ort.jspi.min.mjs', false);
+				return {
+					ort,
+					backend: 'webgpu' as const,
+					executionProviders: ['webgpu', 'wasm'],
+					transfersInputs: false
+				};
 			} catch (cause) {
 				console.warn('WebGPU runtime unavailable, using wasm', cause);
 			}
 		}
-		const ort = await importBuild('ort.wasm.min.mjs');
-		return { ort, backend: 'wasm' as const, executionProviders: ['wasm'] };
+		const proxy = canProxy();
+		const ort = await importBuild('ort.wasm.min.mjs', proxy);
+		return { ort, backend: 'wasm' as const, executionProviders: ['wasm'], transfersInputs: proxy };
 	})();
 	pending = promise;
 	promise.catch(() => {

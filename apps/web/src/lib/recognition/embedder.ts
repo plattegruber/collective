@@ -52,7 +52,7 @@ export async function createEmbedder(
 	const session = await createSession(runtime, bytes);
 	const inputName = session.inputNames[0] ?? 'image';
 	const frame = new FrameBuffer(inputSize, meanColour(config.mean));
-	const chw = new Float32Array(3 * inputSize * inputSize);
+	const shared = new Float32Array(3 * inputSize * inputSize);
 	const { ort } = runtime;
 
 	return {
@@ -63,6 +63,7 @@ export async function createEmbedder(
 			const { width, height } = sourceSize(source);
 			const box = region ? expandBox(region, config.cropMargin, width, height) : undefined;
 			const { rgba } = frame.draw(source, box);
+			const chw = runtime.transfersInputs ? new Float32Array(shared.length) : shared;
 			rgbaToChwNormalized(rgba, inputSize, inputSize, config.mean, config.std, chw);
 			const input = new ort.Tensor('float32', chw, [1, 3, inputSize, inputSize]);
 			const output = await session.run({ [inputName]: input });
