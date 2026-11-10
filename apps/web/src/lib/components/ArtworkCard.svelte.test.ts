@@ -55,6 +55,7 @@ describe('ArtworkCard', () => {
 					artworkId: 'art_1',
 					key: 'users/u/artworks/a/i.jpg',
 					thumbKey: 'users/u/artworks/a/i.thumb.jpg',
+					originalKey: null,
 					contentType: 'image/jpeg',
 					width: 10,
 					height: 10,

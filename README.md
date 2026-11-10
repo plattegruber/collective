@@ -10,6 +10,11 @@ compact fingerprint. Photos are indexed the moment they are uploaded, so there i
 to train, and the scanner keeps learning the views it sees on the collector's walls.
 Camera frames never leave the device.
 
+Photos get the same care: the photo studio finds the piece in a phone snapshot, straightens
+it, crops to the frame (or the art), corrects the colour cast of the room, and removes glass
+reflections from two or three shots taken from slightly different spots. The camera original
+is kept alongside. All of it runs in the browser.
+
 ## Repository layout
 
 | Path | What it is |

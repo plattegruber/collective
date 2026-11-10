@@ -5,7 +5,6 @@
 	import { resolve } from '$app/paths';
 	import { Camera, Plus, X } from 'lucide-svelte';
 	import type { PrototypeIndexPayload, RecognizerManifest } from '#lib/domain/recognition.js';
-	import { cropToBlob } from '#lib/recognition/frames.js';
 	import {
 		formatLoadStage,
 		loadRecognizer,
@@ -24,6 +23,7 @@
 		type CameraPermission
 	} from './camera.js';
 	import { storeCapture } from './capture.js';
+	import { takeStill } from './still.js';
 	import ScannerOverlay, { type ScannerArtwork } from './ScannerOverlay.svelte';
 	import Button from '#lib/components/Button.svelte';
 
@@ -217,10 +217,10 @@
 	}
 
 	async function addUnknown() {
-		if (!video || !unknown || adding) return;
+		if (!video || !stream || !unknown || adding) return;
 		adding = true;
 		try {
-			await storeCapture(await cropToBlob(video, unknown.box));
+			await storeCapture(await takeStill(stream, video));
 			await goto(resolve('/(app)/app/artworks/new'));
 		} catch (cause) {
 			console.error('Could not capture the piece', cause);

@@ -1,0 +1,1 @@
+ALTER TABLE `artwork_images` ADD `original_key` text;

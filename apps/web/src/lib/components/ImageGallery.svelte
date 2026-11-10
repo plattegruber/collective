@@ -1,21 +1,35 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { ImagePlus, Star, Trash2, UploadCloud } from 'lucide-svelte';
-	import { prepareImage, uploadArtworkImage } from '#lib/images/prepare.js';
+	import { Download, ImagePlus, Star, Trash2, UploadCloud } from 'lucide-svelte';
+	import type { RecognizerManifest } from '#lib/domain/recognition.js';
+	import { uploadArtworkImage, type PreparedImage } from '#lib/images/prepare.js';
 	import { toasts } from '#lib/toasts.svelte.js';
 	import type { ArtworkImage } from '#lib/server/db/schema.js';
 	import Button from './Button.svelte';
+	import PhotoStudio from './PhotoStudio.svelte';
 
 	type Props = {
 		artworkId: string;
 		images: ArtworkImage[];
 		primaryImageId: string | null;
+		/** Lets the studio find the piece in a photo with the detector; null without a release. */
+		manifest?: RecognizerManifest | null;
+		/** Width / height from the record, offered by the studio as the output proportions. */
+		recordedAspect?: number | null;
 		onchange?: () => void;
 		/** Fires once per successful upload, before `onchange`, with the stored image's urls. */
 		onuploaded?: (image: { id: string; url: string; thumbUrl: string }) => void;
 	};
 
-	let { artworkId, images, primaryImageId, onchange, onuploaded }: Props = $props();
+	let {
+		artworkId,
+		images,
+		primaryImageId,
+		manifest = null,
+		recordedAspect = null,
+		onchange,
+		onuploaded
+	}: Props = $props();
 
 	interface Pending {
 		id: number;
@@ -38,36 +52,50 @@
 	);
 	const current = $derived(ordered.find((image) => image.id === selected) ?? ordered[0] ?? null);
 
-	async function handleFiles(files: FileList | File[]) {
+	/** Photos waiting in the studio; the studio hands each back prepared, or as shot. */
+	let studioFiles = $state<File[] | null>(null);
+	let uploadedInStudio = 0;
+
+	function handleFiles(files: FileList | File[]) {
 		const list = Array.from(files).filter((file) => file.type.startsWith('image/'));
 		if (list.length === 0) return;
-		// One at a time so positions and the per-artwork limit are checked against fresh state.
-		for (const file of list) await uploadOne(file);
-		onchange?.();
+		openStudio(list);
 	}
 
-	async function uploadOne(file: File) {
+	/** Opens the studio for `files`; the artwork page uses this for scanner captures. */
+	export function openStudio(files: File[]) {
+		uploadedInStudio = 0;
+		studioFiles = files;
+	}
+
+	function closeStudio() {
+		studioFiles = null;
+		if (uploadedInStudio > 0) onchange?.();
+	}
+
+	async function uploadPrepared(prepared: PreparedImage, name: string) {
 		const item: Pending = {
 			id: nextId++,
-			name: file.name,
+			name,
 			progress: 0,
-			preview: URL.createObjectURL(file)
+			preview: URL.createObjectURL(prepared.thumb)
 		};
 		pending = [...pending, item];
 		const update = (patch: Partial<Pending>) => {
 			pending = pending.map((p) => (p.id === item.id ? { ...p, ...patch } : p));
 		};
 		try {
-			const prepared = await prepareImage(file);
 			const stored = await uploadArtworkImage(artworkId, prepared, (fraction) =>
 				update({ progress: fraction })
 			);
 			pending = pending.filter((p) => p.id !== item.id);
+			uploadedInStudio += 1;
 			onuploaded?.(stored);
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : 'Upload failed.';
 			update({ error: message });
-			toasts.push(`${file.name}: ${message}`, 'error');
+			toasts.push(`${name}: ${message}`, 'error');
+			throw cause;
 		} finally {
 			URL.revokeObjectURL(item.preview);
 		}
@@ -90,6 +118,16 @@
 				height={current.height}
 				class="mx-auto max-h-[70vh] w-auto object-contain"
 			/>
+			{#if current.originalKey}
+				<figcaption class="flex justify-end px-3 py-2 text-xs">
+					<a
+						href={`/media/${current.originalKey}`}
+						download
+						class="inline-flex items-center gap-1 text-ink-soft hover:text-ink"
+						><Download class="size-3.5" aria-hidden="true" /> Original as shot</a
+					>
+				</figcaption>
+			{/if}
 		</figure>
 	{/if}
 
@@ -235,8 +273,18 @@
 					size="sm"
 					class="-mx-1 h-auto px-1 text-accent-deep underline underline-offset-4"
 					onclick={() => fileInput?.click()}>choose files</Button
-				>. Straight-on, evenly lit shots work best for recognition.
+				>. They are straightened and cropped for you; the originals are kept.
 			</p>
 		</div>
 	{/if}
 </div>
+
+{#if studioFiles}
+	<PhotoStudio
+		files={studioFiles}
+		{manifest}
+		{recordedAspect}
+		onsave={(prepared, file) => uploadPrepared(prepared, file.name)}
+		onclose={closeStudio}
+	/>
+{/if}

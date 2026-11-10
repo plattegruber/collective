@@ -129,6 +129,8 @@ export const artworkImages = sqliteTable(
 		key: text('key').notNull(),
 		/** R2 object key of the ~480px thumbnail. */
 		thumbKey: text('thumb_key').notNull(),
+		/** R2 object key of the untouched upload (camera original), when it was kept. */
+		originalKey: text('original_key'),
 		contentType: text('content_type').notNull(),
 		width: integer('width').notNull(),
 		height: integer('height').notNull(),

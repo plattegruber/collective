@@ -4,19 +4,32 @@ import { db, schema } from './db/index.js';
 import { newId } from '#lib/utils/id.js';
 
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+/** Camera originals are kept as shot (30 MB covers a 48 MP phone JPEG), never decoded here. */
+export const MAX_ORIGINAL_BYTES = 30 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+export const ALLOWED_ORIGINAL_TYPES = new Set([...ALLOWED_IMAGE_TYPES, 'image/heic', 'image/heif']);
 export const MAX_IMAGES_PER_ARTWORK = 12;
 
 function extensionFor(contentType: string): string {
-	return { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[contentType] ?? 'bin';
+	return (
+		{
+			'image/jpeg': 'jpg',
+			'image/png': 'png',
+			'image/webp': 'webp',
+			'image/heic': 'heic',
+			'image/heif': 'heif'
+		}[contentType] ?? 'bin'
+	);
 }
 
 export interface UploadedImage {
 	full: { bytes: ArrayBuffer; contentType: string; width: number; height: number };
 	thumb: { bytes: ArrayBuffer; contentType: string };
+	/** The upload as the camera produced it, kept for re-processing and downloads. */
+	original?: { bytes: ArrayBuffer; contentType: string };
 }
 
-/** Stores a full-size image and its thumbnail in R2 and records them on the artwork. */
+/** Stores a full-size image, its thumbnail and optionally the original in R2 and records them on the artwork. */
 export async function addArtworkImage(
 	userId: string,
 	artworkId: string,
@@ -37,6 +50,9 @@ export async function addArtworkImage(
 	const base = `users/${userId}/artworks/${artworkId}/${id}`;
 	const key = `${base}.${ext}`;
 	const thumbKey = `${base}.thumb.${extensionFor(upload.thumb.contentType)}`;
+	const originalKey = upload.original
+		? `${base}.original.${extensionFor(upload.original.contentType)}`
+		: null;
 
 	await Promise.all([
 		env.MEDIA.put(key, upload.full.bytes, {
@@ -44,7 +60,12 @@ export async function addArtworkImage(
 		}),
 		env.MEDIA.put(thumbKey, upload.thumb.bytes, {
 			httpMetadata: { contentType: upload.thumb.contentType }
-		})
+		}),
+		originalKey && upload.original
+			? env.MEDIA.put(originalKey, upload.original.bytes, {
+					httpMetadata: { contentType: upload.original.contentType }
+				})
+			: Promise.resolve()
 	]);
 
 	// Computed in the INSERT itself so concurrent uploads never share a position.
@@ -56,6 +77,7 @@ export async function addArtworkImage(
 			artworkId,
 			key,
 			thumbKey,
+			originalKey,
 			contentType: upload.full.contentType,
 			width: upload.full.width,
 			height: upload.full.height,
@@ -85,7 +107,9 @@ export async function removeArtworkImage(
 	if (!image || image.artwork.userId !== userId) return false;
 
 	await db().delete(schema.artworkImages).where(eq(schema.artworkImages.id, imageId));
-	await Promise.all([env.MEDIA.delete(image.key), env.MEDIA.delete(image.thumbKey)]);
+	await env.MEDIA.delete(
+		[image.key, image.thumbKey, image.originalKey].filter((k): k is string => k !== null)
+	);
 
 	if (image.artwork.primaryImageId === imageId) {
 		const next = await db().query.artworkImages.findFirst({

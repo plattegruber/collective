@@ -9,7 +9,6 @@
 	import { byline, formatDate } from '#lib/utils/format.js';
 	import { formatMoney } from '#lib/utils/money.js';
 	import { toasts } from '#lib/toasts.svelte.js';
-	import { prepareImage, uploadArtworkImage } from '#lib/images/prepare.js';
 	import { formatLoadStage, loadRecognizer } from '#lib/recognition/loader.js';
 	import { loadImage, teachPhoto } from '#lib/recognition/teach.js';
 	import { captureToFile, clearCapture, peekCapture } from '#lib/scanner/capture.js';
@@ -51,24 +50,22 @@
 		for (const image of pendingImages) await teach(image.id, `/media/${image.thumbKey}`);
 	}
 
-	/** A piece captured by the scanner becomes this artwork's first photo. */
+	let gallery: ReturnType<typeof ImageGallery> | undefined = $state();
+
+	/** A piece captured by the scanner opens in the studio as this artwork's first photo. */
 	async function attachCapture() {
 		const capture = peekCapture();
-		if (!capture) return;
+		if (!capture || !gallery) return;
 		clearCapture();
 		try {
-			const prepared = await prepareImage(await captureToFile(capture));
-			const stored = await uploadArtworkImage(data.artwork.id, prepared);
-			toasts.push('Photo from the scanner attached.', 'success');
-			await invalidate('app:artwork');
-			await teach(stored.id, stored.thumbUrl);
+			gallery.openStudio([await captureToFile(capture)]);
 		} catch (cause) {
 			toasts.push(cause instanceof Error ? cause.message : 'Could not attach the photo.', 'error');
 		}
 	}
 
 	$effect(() => {
-		if (data.created) void attachCapture();
+		if (data.created && gallery) void attachCapture();
 	});
 
 	const artwork = $derived(data.artwork);
@@ -158,9 +155,14 @@
 <div class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
 	<section aria-label="Photos">
 		<ImageGallery
+			bind:this={gallery}
 			artworkId={artwork.id}
 			images={artwork.images}
 			primaryImageId={artwork.primaryImageId}
+			manifest={data.recognizer?.manifest ?? null}
+			recordedAspect={artwork.widthCm && artwork.heightCm
+				? artwork.widthCm / artwork.heightCm
+				: null}
 			onchange={() => invalidate('app:artwork')}
 			onuploaded={(image) => teach(image.id, image.thumbUrl)}
 		/>
